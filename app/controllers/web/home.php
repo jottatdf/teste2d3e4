@@ -23,6 +23,7 @@ App::init(function (View $layout) {
         ->setParam('platforms', Config::getParam('platforms'))
         ->setParam('header', [$header])
         ->setParam('footer', [$footer])
+        ->setParam('analytics-option', App::getEnv('_APP_OPTIONS_ANALYTICS', 'enabled'))
     ;
 }, ['layout'], 'home');
 
