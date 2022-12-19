@@ -98,7 +98,7 @@ class BuildsV1 extends Worker
                 '$permissions' => [],
                 'startTime' => $startTime,
                 'deploymentId' => $deployment->getId(),
-                'status' => 'processing',
+                'status' => 'building',
                 'outputPath' => '',
                 'runtime' => $function->getAttribute('runtime'),
                 'source' => $deployment->getAttribute('path'),
@@ -112,11 +112,10 @@ class BuildsV1 extends Worker
             $deployment = $dbForProject->updateDocument('deployments', $deployment->getId(), $deployment);
         } else {
             $build = $dbForProject->getDocument('builds', $buildId);
-        }
 
-        /** Request the executor to build the code... */
-        $build->setAttribute('status', 'building');
-        $build = $dbForProject->updateDocument('builds', $buildId, $build);
+            $build->setAttribute('status', 'building');
+            $build = $dbForProject->updateDocument('builds', $buildId, $build);
+        }
 
         /** Trigger Webhook */
         $deploymentModel = new Deployment();
@@ -168,6 +167,8 @@ class BuildsV1 extends Worker
             return $carry;
         }, []);
 
+        /** Build deployment */
+        $durationStart = \microtime(true);
         try {
             $response = $this->executor->createRuntime(
                 projectId: $project->getId(),
@@ -191,7 +192,7 @@ class BuildsV1 extends Worker
 
             /** Update the build document */
             $build->setAttribute('endTime', DateTime::format($endTime));
-            $build->setAttribute('duration', \intval($response['duration']));
+            $build->setAttribute('duration', $response['duration']);
             $build->setAttribute('status', $response['status']);
             $build->setAttribute('outputPath', $response['outputPath']);
             $build->setAttribute('stderr', $response['stderr']);
@@ -222,10 +223,10 @@ class BuildsV1 extends Worker
 
             Authorization::skip(fn () => $dbForConsole->updateDocument('schedules', $schedule->getId(), $schedule));
         } catch (\Throwable $th) {
-            $endTime = DateTime::now();
-            $interval = (new \DateTime($endTime))->diff(new \DateTime($startTime));
+            $durationEnd = \microtime(true);
+            $duration = ($durationEnd - $durationStart);
             $build->setAttribute('endTime', $endTime);
-            $build->setAttribute('duration', $interval->format('%s') + 0);
+            $build->setAttribute('duration', $duration);
             $build->setAttribute('status', 'failed');
             $build->setAttribute('stderr', $th->getMessage());
             Console::error($th->getMessage());
