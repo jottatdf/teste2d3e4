@@ -629,19 +629,18 @@ App::patch('/v1/users/:userId/status')
     ->label('sdk.response.type', Response::CONTENT_TYPE_JSON)
     ->label('sdk.response.model', Response::MODEL_USER)
     ->param('userId', '', new UID(), 'User ID.')
-    ->param('status', null, new Boolean(true), 'User Status. To activate the user pass `true` and to block the user pass `false`.')
+    ->param('status', null, new Boolean(), 'User Status. To activate the user pass `true` and to block the user pass `false`.')
     ->inject('response')
     ->inject('dbForProject')
     ->inject('events')
     ->action(function (string $userId, bool $status, Response $response, Database $dbForProject, Event $events) {
-
         $user = $dbForProject->getDocument('users', $userId);
 
         if ($user->isEmpty()) {
             throw new Exception(Exception::USER_NOT_FOUND);
         }
 
-        $user = $dbForProject->updateDocument('users', $user->getId(), $user->setAttribute('status', (bool) $status));
+        $user = $dbForProject->updateDocument('users', $user->getId(), $user->setAttribute('status', $status));
 
         $events
             ->setParam('userId', $user->getId());
@@ -665,7 +664,7 @@ App::patch('/v1/users/:userId/verification')
     ->label('sdk.response.type', Response::CONTENT_TYPE_JSON)
     ->label('sdk.response.model', Response::MODEL_USER)
     ->param('userId', '', new UID(), 'User ID.')
-    ->param('emailVerification', false, new Boolean(), 'User email verification status.')
+    ->param('emailVerification', null, new Boolean(), 'User email verification status.')
     ->inject('response')
     ->inject('dbForProject')
     ->inject('events')
@@ -701,7 +700,7 @@ App::patch('/v1/users/:userId/verification/phone')
     ->label('sdk.response.type', Response::CONTENT_TYPE_JSON)
     ->label('sdk.response.model', Response::MODEL_USER)
     ->param('userId', '', new UID(), 'User ID.')
-    ->param('phoneVerification', false, new Boolean(), 'User phone verification status.')
+    ->param('phoneVerification', null, new Boolean(), 'User phone verification status.')
     ->inject('response')
     ->inject('dbForProject')
     ->inject('events')
@@ -913,7 +912,7 @@ App::patch('/v1/users/:userId/verification')
     ->label('sdk.response.type', Response::CONTENT_TYPE_JSON)
     ->label('sdk.response.model', Response::MODEL_USER)
     ->param('userId', '', new UID(), 'User ID.')
-    ->param('emailVerification', false, new Boolean(), 'User email verification status.')
+    ->param('emailVerification', null, new Boolean(), 'User email verification status.')
     ->inject('response')
     ->inject('dbForProject')
     ->inject('events')
