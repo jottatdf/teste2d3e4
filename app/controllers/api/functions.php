@@ -25,7 +25,6 @@ use Appwrite\Task\Validator\Cron;
 use Appwrite\Utopia\Database\Validator\Queries\Deployments;
 use Appwrite\Utopia\Database\Validator\Queries\Executions;
 use Appwrite\Utopia\Database\Validator\Queries\Functions;
-use Appwrite\Utopia\Database\Validator\Queries\Variables;
 use Utopia\App;
 use Utopia\Database\Database;
 use Utopia\Database\Document;
@@ -33,7 +32,6 @@ use Utopia\Database\DateTime;
 use Utopia\Database\Query;
 use Utopia\Database\Validator\Authorization;
 use Utopia\Validator\ArrayList;
-use Utopia\Validator\Assoc;
 use Utopia\Validator\Text;
 use Utopia\Validator\Range;
 use Utopia\Validator\WhiteList;
@@ -86,6 +84,7 @@ App::post('/v1/functions')
             'enabled' => $enabled,
             'name' => $name,
             'runtime' => $runtime,
+            'deploymentInternalId' => '',
             'deployment' => '',
             'events' => $events,
             'schedule' => $schedule,
@@ -716,6 +715,7 @@ App::post('/v1/functions/:functionId/deployments')
                         Permission::update(Role::any()),
                         Permission::delete(Role::any()),
                     ],
+                    'resourceInternalId' => $function->getInternalId(),
                     'resourceId' => $function->getId(),
                     'resourceType' => 'functions',
                     'entrypoint' => $entrypoint,
@@ -746,6 +746,7 @@ App::post('/v1/functions/:functionId/deployments')
                         Permission::update(Role::any()),
                         Permission::delete(Role::any()),
                     ],
+                    'resourceInternalId' => $function->getInternalId(),
                     'resourceId' => $function->getId(),
                     'resourceType' => 'functions',
                     'entrypoint' => $entrypoint,
@@ -926,6 +927,7 @@ App::delete('/v1/functions/:functionId/deployments/:deploymentId')
 
         if ($function->getAttribute('deployment') === $deployment->getId()) { // Reset function deployment
             $function = $dbForProject->updateDocument('functions', $function->getId(), new Document(array_merge($function->getArrayCopy(), [
+                'deploymentInternalId' => '',
                 'deployment' => '',
             ])));
         }
@@ -1077,7 +1079,9 @@ App::post('/v1/functions/:functionId/executions')
         $execution = Authorization::skip(fn () => $dbForProject->createDocument('executions', new Document([
             '$id' => $executionId,
             '$permissions' => !$user->isEmpty() ? [Permission::read(Role::user($user->getId()))] : [],
+            'functionInternalId' => $function->getInternalId(),
             'functionId' => $function->getId(),
+            'deploymentInternalId' => $deployment->getInternalId(),
             'deploymentId' => $deployment->getId(),
             'trigger' => 'http', // http / schedule / event
             'status' => $async ? 'waiting' : 'processing', // waiting / processing / completed / failed

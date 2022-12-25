@@ -86,6 +86,7 @@ class BuildsV1 extends Worker
                 '$id' => $buildId,
                 '$permissions' => [],
                 'startTime' => $startTime,
+                'deploymentInternalId' => $deployment->getInternalId(),
                 'deploymentId' => $deployment->getId(),
                 'status' => 'processing',
                 'outputPath' => '',
@@ -97,7 +98,8 @@ class BuildsV1 extends Worker
                 'endTime' => null,
                 'duration' => 0
             ]));
-            $deployment->setAttribute('buildId', $buildId);
+            $deployment->setAttribute('buildId', $build->getId());
+            $deployment->setAttribute('buildInternalId', $build->getInternalId());
             $deployment = $dbForProject->updateDocument('deployments', $deployment->getId(), $deployment);
         } else {
             $build = $dbForProject->getDocument('builds', $buildId);
@@ -188,6 +190,7 @@ class BuildsV1 extends Worker
 
             /** Set auto deploy */
             if ($deployment->getAttribute('activate') === true) {
+                $function->setAttribute('deploymentInternalId', $deployment->getInternalId());
                 $function->setAttribute('deployment', $deployment->getId());
                 $function = $dbForProject->updateDocument('functions', $function->getId(), $function);
             }
@@ -233,6 +236,7 @@ class BuildsV1 extends Worker
                 $usage = new Stats($statsd);
                 $usage
                     ->setParam('projectId', $project->getId())
+                    ->setParam('projectInternalId', $project->getInternalId())
                     ->setParam('functionId', $function->getId())
                     ->setParam('builds.{scope}.compute', 1)
                     ->setParam('buildStatus', $build->getAttribute('status', ''))
