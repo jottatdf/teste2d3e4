@@ -306,6 +306,7 @@ RUN chmod +x /usr/local/bin/doctor && \
     chmod +x /usr/local/bin/patch-create-missing-schedules && \
     chmod +x /usr/local/bin/maintenance && \
     chmod +x /usr/local/bin/volume-sync && \
+    chmod +x /usr/local/bin/edge-sync && \
     chmod +x /usr/local/bin/usage && \
     chmod +x /usr/local/bin/install && \
     chmod +x /usr/local/bin/migrate && \
@@ -324,7 +325,11 @@ RUN chmod +x /usr/local/bin/doctor && \
     chmod +x /usr/local/bin/worker-builds && \
     chmod +x /usr/local/bin/worker-mails && \
     chmod +x /usr/local/bin/worker-messaging && \
-    chmod +x /usr/local/bin/worker-webhooks
+    chmod +x /usr/local/bin/worker-webhooks && \
+    chmod +x /usr/local/bin/worker-sync-out && \
+    chmod +x /usr/local/bin/worker-sync-in
+
+
 
 # Letsencrypt Permissions
 RUN mkdir -p /etc/letsencrypt/live/ && chmod -Rf 755 /etc/letsencrypt/live/
