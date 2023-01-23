@@ -22,6 +22,7 @@ use Utopia\Database\Database;
 use Utopia\Database\DateTime;
 use Utopia\Database\Document;
 use Utopia\Database\Validator\Authorization;
+use Utopia\Queue\Client;
 
 $parseLabel = function (string $label, array $responsePayload, array $requestParams, Document $user) {
     preg_match_all('/{(.*?)}/', $label, $matches);
@@ -101,11 +102,11 @@ App::init()
     ->inject('audits')
     ->inject('mails')
     ->inject('usage')
-    ->inject('deletes')
+    ->inject('queueForDeletes')
     ->inject('database')
     ->inject('dbForProject')
     ->inject('mode')
-    ->action(function (App $utopia, Request $request, Response $response, Document $project, Document $user, Event $events, Audit $audits, Mail $mails, Stats $usage, Delete $deletes, EventDatabase $database, Database $dbForProject, string $mode) use ($databaseListener) {
+    ->action(function (App $utopia, Request $request, Response $response, Document $project, Document $user, Event $events, Audit $audits, Mail $mails, Stats $usage, Delete $queueForDeletes, EventDatabase $database, Database $dbForProject, string $mode) use ($databaseListener) {
 
         $route = $utopia->match($request);
 
@@ -199,7 +200,7 @@ App::init()
             ->setParam('project.{scope}.network.inbound', 0)
             ->setParam('project.{scope}.network.outbound', 0);
 
-        $deletes->setProject($project);
+        $queueForDeletes->setProject($project);
         $database->setProject($project);
 
         $dbForProject->on(Database::EVENT_DOCUMENT_CREATE, fn ($event, Document $document) => $databaseListener($event, $document, $usage));
@@ -328,12 +329,13 @@ App::shutdown()
     ->inject('events')
     ->inject('audits')
     ->inject('usage')
-    ->inject('deletes')
+    ->inject('queueForDeletes')
     ->inject('database')
     ->inject('mode')
     ->inject('dbForProject')
     ->inject('queueForFunctions')
-    ->action(function (App $utopia, Request $request, Response $response, Document $project, Event $events, Audit $audits, Stats $usage, Delete $deletes, EventDatabase $database, string $mode, Database $dbForProject, Func $queueForFunctions) use ($parseLabel) {
+    ->inject('queueForEdgeSyncOut')
+    ->action(function (App $utopia, Request $request, Response $response, Document $project, Event $events, Audit $audits, Stats $usage, Delete $deletes, EventDatabase $database, string $mode, Database $dbForProject, Func $queueForFunctions, Client $queueForEdgeSyncOut) use ($parseLabel) {
 
         $responsePayload = $response->getPayload();
 
@@ -388,8 +390,31 @@ App::shutdown()
                         'userId' => $events->getParam('userId')
                     ]
                 );
+                 //Sync with other regions
+                $queueForEdgeSyncOut->enqueue([
+                        'type' => 'realtime',
+                        'key' => [
+                                'projectId' => $target['projectId'] ?? $project->getId(),
+                                'payload' => $events->getPayload(),
+                                'events' => $allEvents,
+                                'channels' => $target['channels'],
+                                'roles' => $target['roles'],
+                                'options' => [
+                                    'permissionsChanged' => $target['permissionsChanged'],
+                                    'userId' => $events->getParam('userId')
+                                ]
+                        ]
+                ]);
             }
         }
+
+//        $queueForEdgeSyncOut->enqueue([
+//            'type' => 'certificate',
+//            'key' => [
+//                'domain' => 'appwrite.io',
+//                'contents' => base64_encode(file_get_contents(APP_STORAGE_CERTIFICATES . '/appwrite.io.tar.gz')),
+//            ]
+//        ]);
 
         $route = $utopia->match($request);
         $requestParams = $route->getParamsValues();
@@ -511,6 +536,7 @@ App::shutdown()
 
             $fileSize = 0;
             $file = $request->getFiles('file');
+
             if (!empty($file)) {
                 $fileSize = (\is_array($file['size']) && isset($file['size'][0])) ? $file['size'][0] : $file['size'];
             }

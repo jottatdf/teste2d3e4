@@ -108,6 +108,7 @@ class RealtimeCustomClientTest extends Scope
         $this->assertEquals($userId, $response['data']['user']['$id']);
 
         $client->close();
+
     }
 
     public function testManualAuthentication()
@@ -213,6 +214,7 @@ class RealtimeCustomClientTest extends Scope
 
 
         $client->close();
+
     }
 
     public function testConnectionPlatform()
@@ -231,10 +233,12 @@ class RealtimeCustomClientTest extends Scope
         \usleep(250000); // 250ms
         $this->expectException(ConnectionException::class); // Check if server disconnnected client
         $client->close();
+
     }
 
     public function testChannelAccount()
     {
+
         $user = $this->getUser();
         $userId = $user['$id'] ?? '';
         $session = $user['session'] ?? '';
@@ -425,6 +429,7 @@ class RealtimeCustomClientTest extends Scope
         $this->assertContains("users.*.verification.*.update", $response['data']['events']);
         $this->assertContains("users.*.verification.*", $response['data']['events']);
         $this->assertContains("users.*", $response['data']['events']);
+
         /**
          * Test Acoount Prefs Update
          */
@@ -576,7 +581,6 @@ class RealtimeCustomClientTest extends Scope
         ]);
 
         $response = json_decode($client->receive(), true);
-
         $this->assertArrayHasKey('type', $response);
         $this->assertArrayHasKey('data', $response);
         $this->assertEquals('event', $response['type']);
@@ -1248,7 +1252,7 @@ class RealtimeCustomClientTest extends Scope
         $this->assertNotEmpty($deployment['body']['$id']);
 
         // Wait for deployment to be built.
-        sleep(5);
+        sleep(10);
 
         $response = $this->client->call(Client::METHOD_PATCH, '/functions/' . $functionId . '/deployments/' . $deploymentId, array_merge([
             'content-type' => 'application/json',

@@ -3,6 +3,8 @@
 require_once __DIR__ . '/init.php';
 require_once __DIR__ . '/controllers/general.php';
 
+use Appwrite\Event\Certificate;
+use Appwrite\Event\Delete;
 use Appwrite\Event\Func;
 use Appwrite\Platform\Appwrite;
 use Utopia\CLI\CLI;
@@ -17,11 +19,15 @@ use Utopia\Database\Database;
 use Utopia\Database\Document;
 use Utopia\Logger\Log;
 use Utopia\Pools\Group;
+use Utopia\Queue\Client;
+use Utopia\Queue\Connection;
 use Utopia\Registry\Registry;
 
 Authorization::disable();
 
-CLI::setResource('register', fn()=>$register);
+global $register;
+
+CLI::setResource('register', fn() => $register);
 
 CLI::setResource('cache', function ($pools) {
     $list = Config::getParam('pools-cache', []);
@@ -31,8 +37,7 @@ CLI::setResource('cache', function ($pools) {
         $adapters[] = $pools
             ->get($value)
             ->pop()
-            ->getResource()
-        ;
+            ->getResource();
     }
 
     return new Cache(new Sharding($adapters));
@@ -64,7 +69,8 @@ CLI::setResource('dbForConsole', function ($pools, $cache) {
             $collections = Config::getParam('collections', []);
             $last = \array_key_last($collections);
 
-            if (!($dbForConsole->exists($dbForConsole->getDefaultDatabase(), $last))) { /** TODO cache ready variable using registry */
+            if (!($dbForConsole->exists($dbForConsole->getDefaultDatabase(), $last))) {
+                /** TODO cache ready variable using registry */
                 throw new Exception('Tables not ready yet.');
             }
 
@@ -117,7 +123,8 @@ CLI::setResource('getProjectDB', function (Group $pools, Database $dbForConsole,
 }, ['pools', 'dbForConsole', 'cache']);
 
 CLI::setResource('influxdb', function (Registry $register) {
-    $client = $register->get('influxdb'); /** @var InfluxDB\Client $client */
+    $client = $register->get('influxdb');
+    /** @var InfluxDB\Client $client */
     $attempts = 0;
     $max = 10;
     $sleep = 1;
@@ -140,9 +147,25 @@ CLI::setResource('influxdb', function (Registry $register) {
     return $database;
 }, ['register']);
 
-CLI::setResource('queueForFunctions', function (Group $pools) {
-    return new Func($pools->get('queue')->pop()->getResource());
+CLI::setResource('queue', function (Group $pools) {
+    return $pools->get('queue')->pop()->getResource();
 }, ['pools']);
+
+CLI::setResource('queueForCertificates', function (Connection $queue) {
+    return new Certificate($queue);
+}, ['queue']);
+
+CLI::setResource('queueForDeletes', function (Connection $queue) {
+    return new Delete($queue);
+}, ['queue']);
+
+CLI::setResource('queueForFunctions', function (Connection $queue) {
+    return new Func($queue);
+}, ['queue']);
+
+CLI::setResource('queueForEdgeSyncOut', function (Connection $queue) {
+    return new Client('v1-sync-out', $queue);
+}, ['queue']);
 
 CLI::setResource('logError', function (Registry $register) {
     return function (Throwable $error, string $namespace, string $action) use ($register) {

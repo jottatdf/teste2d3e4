@@ -18,6 +18,7 @@ ini_set('display_startup_errors', 1);
 ini_set('default_socket_timeout', -1);
 error_reporting(E_ALL);
 
+use Appwrite\Event\Certificate;
 use Appwrite\Extend\Exception;
 use Appwrite\Auth\Auth;
 use Appwrite\SMS\Adapter\Mock;
@@ -39,6 +40,7 @@ use Appwrite\OpenSSL\OpenSSL;
 use Appwrite\URL\URL as AppwriteURL;
 use Appwrite\Usage\Stats;
 use Utopia\App;
+use Utopia\Queue\Client;
 use Utopia\Validator\Range;
 use Utopia\Validator\WhiteList;
 use Utopia\Database\ID;
@@ -857,8 +859,20 @@ App::setResource('messaging', fn() => new Phone());
 App::setResource('queue', function (Group $pools) {
     return $pools->get('queue')->pop()->getResource();
 }, ['pools']);
+App::setResource('queueForDeletes', function (Connection $queue) {
+    return new Delete($queue);
+}, ['queue']);
 App::setResource('queueForFunctions', function (Connection $queue) {
     return new Func($queue);
+}, ['queue']);
+App::setResource('queueForCertificates', function (Connection $queue) {
+    return new Certificate($queue);
+}, ['queue']);
+App::setResource('queueForEdgeSyncOut', function (Connection $queue) {
+    return new Client('v1-sync-out', $queue);
+}, ['queue']);
+App::setResource('queueForEdgeSyncIn', function (Connection $queue) {
+    return new Client('v1-sync-in', $queue);
 }, ['queue']);
 App::setResource('usage', function ($register) {
     return new Stats($register->get('statsd'));
@@ -1074,7 +1088,7 @@ App::setResource('dbForConsole', function (Group $pools, Cache $cache) {
     return $database;
 }, ['pools', 'cache']);
 
-App::setResource('cache', function (Group $pools) {
+App::setResource('cache', function (Group $pools, Client $queueForEdgeSyncOut) {
     $list = Config::getParam('pools-cache', []);
     $adapters = [];
 
@@ -1085,9 +1099,26 @@ App::setResource('cache', function (Group $pools) {
             ->getResource()
         ;
     }
+    $cache  = new Cache(new Sharding($adapters));
 
-    return new Cache(new Sharding($adapters));
-}, ['pools']);
+    $cache->on(cache::EVENT_SAVE, function ($key) use ($queueForEdgeSyncOut) {
+        $queueForEdgeSyncOut
+            ->enqueue([
+                'type' => 'cache',
+                'key' => $key
+            ]);
+    });
+
+    $cache->on(cache::EVENT_PURGE, function ($key) use ($queueForEdgeSyncOut) {
+        $queueForEdgeSyncOut
+            ->enqueue([
+                'type' => 'cache',
+                'key' => $key
+            ]);
+    });
+
+    return $cache;
+}, ['pools', 'queueForEdgeSyncOut']);
 
 App::setResource('deviceLocal', function () {
     return new Local();
@@ -1127,21 +1158,14 @@ function getDevice($root): Device
         Console::error($e->getMessage() . 'Invalid DSN. Defaulting to Local device.');
     }
 
-    switch ($device) {
-        case Storage::DEVICE_S3:
-            return new S3($root, $accessKey, $accessSecret, $bucket, $region, $acl);
-        case STORAGE::DEVICE_DO_SPACES:
-            return new DOSpaces($root, $accessKey, $accessSecret, $bucket, $region, $acl);
-        case Storage::DEVICE_BACKBLAZE:
-            return new Backblaze($root, $accessKey, $accessSecret, $bucket, $region, $acl);
-        case Storage::DEVICE_LINODE:
-            return new Linode($root, $accessKey, $accessSecret, $bucket, $region, $acl);
-        case Storage::DEVICE_WASABI:
-            return new Wasabi($root, $accessKey, $accessSecret, $bucket, $region, $acl);
-        case Storage::DEVICE_LOCAL:
-        default:
-            return new Local($root);
-    }
+    return match ($device) {
+        Storage::DEVICE_S3 => new S3($root, $accessKey, $accessSecret, $bucket, $region, $acl),
+        STORAGE::DEVICE_DO_SPACES => new DOSpaces($root, $accessKey, $accessSecret, $bucket, $region, $acl),
+        Storage::DEVICE_BACKBLAZE => new Backblaze($root, $accessKey, $accessSecret, $bucket, $region, $acl),
+        Storage::DEVICE_LINODE => new Linode($root, $accessKey, $accessSecret, $bucket, $region, $acl),
+        Storage::DEVICE_WASABI => new Wasabi($root, $accessKey, $accessSecret, $bucket, $region, $acl),
+        default => new Local($root),
+    };
 }
 
 App::setResource('mode', function ($request) {

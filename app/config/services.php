@@ -199,4 +199,17 @@ return [
         'optional' => false,
         'icon' => '',
     ],
+    'syncs' => [
+        'key' => 'edge',
+        'name' => 'edge',
+        'subtitle' => 'Appwrite\'s cache edge sync Endpoint',
+        'description' => 'Cache edge sync Endpoint',
+        'controller' => 'api/edge.php',
+        'sdk' => false,
+        'docs' => false,
+        'docsUrl' => '',
+        'tests' => true,
+        'optional' => false,
+        'icon' => '',
+    ],
 ];
