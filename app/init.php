@@ -39,6 +39,7 @@ use Appwrite\OpenSSL\OpenSSL;
 use Appwrite\URL\URL as AppwriteURL;
 use Appwrite\Usage\Stats;
 use Utopia\App;
+use Utopia\Queue\Client;
 use Utopia\Validator\Range;
 use Utopia\Validator\WhiteList;
 use Utopia\Database\ID;
@@ -854,12 +855,15 @@ App::setResource('mails', fn() => new Mail());
 App::setResource('deletes', fn() => new Delete());
 App::setResource('database', fn() => new EventDatabase());
 App::setResource('messaging', fn() => new Phone());
-App::setResource('queue', function (Group $pools) {
-    return $pools->get('queue')->pop()->getResource();
+App::setResource('queueForFunctions', function (Group $pools) {
+    return new Func($pools->get('queue')->pop()->getResource());
 }, ['pools']);
-App::setResource('queueForFunctions', function (Connection $queue) {
-    return new Func($queue);
-}, ['queue']);
+App::setResource('queueForCacheSyncOut', function (Group $pools) {
+    return new Client('v1-sync-out', $pools->get('queue')->pop()->getResource());
+}, ['pools']);
+App::setResource('queueForCacheSyncIn', function (Group $pools) {
+    return new Client('v1-sync-in', $pools->get('queue')->pop()->getResource());
+}, ['pools']);
 App::setResource('usage', function ($register) {
     return new Stats($register->get('statsd'));
 }, ['register']);
@@ -1074,7 +1078,7 @@ App::setResource('dbForConsole', function (Group $pools, Cache $cache) {
     return $database;
 }, ['pools', 'cache']);
 
-App::setResource('cache', function (Group $pools) {
+App::setResource('cache', function (Group $pools, Client $queueForCacheSyncOut) {
     $list = Config::getParam('pools-cache', []);
     $adapters = [];
 
@@ -1085,9 +1089,24 @@ App::setResource('cache', function (Group $pools) {
             ->getResource()
         ;
     }
+    $cache  = new Cache(new Sharding($adapters));
 
-    return new Cache(new Sharding($adapters));
-}, ['pools']);
+    $cache->on(cache::EVENT_SAVE, function ($key) use ($queueForCacheSyncOut) {
+        $queueForCacheSyncOut
+            ->enqueue([
+                'key' => $key
+            ]);
+    });
+
+    $cache->on(cache::EVENT_PURGE, function ($key) use ($queueForCacheSyncOut) {
+        $queueForCacheSyncOut
+            ->enqueue([
+                'key' => $key
+            ]);
+    });
+
+    return $cache;
+}, ['pools', 'queueForCacheSyncOut']);
 
 App::setResource('deviceLocal', function () {
     return new Local();

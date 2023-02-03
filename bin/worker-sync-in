@@ -1,0 +1,3 @@
+#!/bin/sh
+
+QUEUE=v1-sync-in php /usr/src/code/app/workers/sync-in.php $@

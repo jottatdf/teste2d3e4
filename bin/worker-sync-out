@@ -1,0 +1,3 @@
+#!/bin/sh
+
+QUEUE=v1-sync-out php /usr/src/code/app/workers/sync-out.php $@

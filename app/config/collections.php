@@ -18,6 +18,71 @@ $auth = Config::getParam('auth', []);
  */
 
 $collections = [
+    'syncs' => [
+        '$collection' => ID::custom(Database::METADATA),
+        '$id' => ID::custom('syncs'),
+        'name' => 'Syncs',
+        'attributes' => [
+            [
+                '$id' => ID::custom('region'),
+                'type' => Database::VAR_STRING,
+                'size' => 50,
+                'required' => true,
+                'signed' => true,
+                'array' => false,
+                'filters' => [],
+            ],
+            [
+                '$id' => ID::custom('target'),
+                'type' => Database::VAR_STRING,
+                'size' => 50,
+                'required' => true,
+                'signed' => true,
+                'array' => false,
+                'filters' => [],
+            ],
+            [
+                '$id' => ID::custom('keys'),
+                'type' => Database::VAR_STRING,
+                'format' => '',
+                'size' => 16384,
+                'signed' => true,
+                'required' => true,
+                'default' => [],
+                'array' => false,
+                'filters' => ['json'],
+            ],
+            [
+                '$id' => ID::custom('status'),
+                'type' => Database::VAR_INTEGER,
+                'size' => 256,
+                'required' => true,
+                'signed' => true,
+                'array' => false,
+                'filters' => [],
+            ],
+            [
+                '$id' => ID::custom('payload'),
+                'type' => Database::VAR_STRING,
+                'format' => '',
+                'size' => 16384,
+                'signed' => true,
+                'required' => true,
+                'default' => [],
+                'array' => false,
+                'filters' => ['json'],
+            ],
+        ],
+        'indexes' => [
+            [
+                '$id' => ID::custom('_key_status'),
+                'type' => Database::INDEX_KEY,
+                'attributes' => ['status'],
+                'lengths' => [],
+                'orders' => [],
+            ],
+        ],
+    ],
     'databases' => [
         '$collection' => ID::custom(Database::METADATA),
         '$id' => ID::custom('databases'),

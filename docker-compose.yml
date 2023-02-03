@@ -54,7 +54,7 @@ services:
         TESTING: true
         VERSION: dev
         VITE_CONSOLE_MODE: self-hosted
-    ports: 
+    ports:
       - 9501:80
     networks:
       - appwrite
@@ -86,6 +86,7 @@ services:
       - ./src:/usr/src/code/src
       - ./dev:/usr/local/dev
 
+      #- ./vendor/utopia-php/cache:/usr/src/code/vendor/utopia-php/cache
     depends_on:
       - mariadb
       - redis
@@ -255,6 +256,69 @@ services:
       - _APP_CONNECTIONS_QUEUE
       - _APP_LOGGING_PROVIDER
       - _APP_LOGGING_CONFIG
+
+  appwrite-worker-sync-out:
+    entrypoint: worker-sync-out
+    <<: *x-logging
+    container_name: appwrite-worker-sync-out
+    image: appwrite-dev
+    networks:
+      - appwrite
+    volumes:
+      - ./app:/usr/src/code/app
+      - ./src:/usr/src/code/src
+      - ./vendor/utopia-php/pools:/usr/src/code/vendor/utopia-php/pools
+    depends_on:
+      - mariadb
+      - redis
+    environment:
+        - _APP_ENV
+        - _APP_REDIS_HOST
+        - _APP_REDIS_PORT
+        - _APP_REDIS_USER
+        - _APP_REDIS_PASS
+        - _APP_DB_HOST
+        - _APP_DB_PORT
+        - _APP_DB_SCHEMA
+        - _APP_DB_USER
+        - _APP_DB_PASS
+        - _APP_CONNECTIONS_MAX
+        - _APP_POOL_CLIENTS
+        - _APP_CONNECTIONS_DB_PROJECT
+        - _APP_CONNECTIONS_DB_CONSOLE
+        - _APP_CONNECTIONS_CACHE
+        - _APP_CONNECTIONS_QUEUE
+        - _APP_WORKER_PER_CORE
+        - _APP_REGION
+
+  appwrite-worker-sync-in:
+    entrypoint: worker-sync-in
+    <<: *x-logging
+    container_name: appwrite-worker-sync-in
+    image: appwrite-dev
+    networks:
+      - appwrite
+    volumes:
+      - ./app:/usr/src/code/app
+      - ./src:/usr/src/code/src
+      #- ./vendor/utopia-php/cache:/usr/src/code/vendor/utopia-php/cache
+
+    depends_on:
+      - redis
+    environment:
+      - _APP_ENV
+      - _APP_REDIS_HOST
+      - _APP_REDIS_PORT
+      - _APP_REDIS_USER
+      - _APP_REDIS_PASS
+      - _APP_CONNECTIONS_DB_PROJECT
+      - _APP_CONNECTIONS_DB_CONSOLE
+      - _APP_CONNECTIONS_CACHE
+      - _APP_CONNECTIONS_MAX
+      - _APP_POOL_CLIENTS
+      - _APP_CONNECTIONS_QUEUE
+      - _APP_WORKER_PER_CORE
+      - _APP_REGION
 
   appwrite-worker-webhooks:
     entrypoint: worker-webhooks
@@ -582,6 +646,41 @@ services:
       - _APP_MAINTENANCE_RETENTION_AUDIT
       - _APP_MAINTENANCE_RETENTION_USAGE_HOURLY
       - _APP_MAINTENANCE_RETENTION_SCHEDULES
+
+  appwrite-edge-sync:
+    entrypoint: edge-sync
+    <<: *x-logging
+    container_name: appwrite-edge-sync
+    image: appwrite-dev
+    networks:
+      - appwrite
+    volumes:
+      - ./app:/usr/src/code/app
+      - ./src:/usr/src/code/src
+      - ./vendor/utopia-php/cli:/usr/src/code/vendor/utopia-php/cli
+    depends_on:
+      - mariadb
+      - redis
+    environment:
+      - _APP_ENV
+      - _APP_REDIS_HOST
+      - _APP_REDIS_PORT
+      - _APP_REDIS_USER
+      - _APP_REDIS_PASS
+      - _APP_DB_HOST
+      - _APP_DB_PORT
+      - _APP_DB_SCHEMA
+      - _APP_DB_USER
+      - _APP_DB_PASS
+      - _APP_CONNECTIONS_MAX
+      - _APP_POOL_CLIENTS
+      - _APP_SYNC_EDGE_INTERVAL
+      - _APP_CONNECTIONS_DB_PROJECT
+      - _APP_CONNECTIONS_DB_CONSOLE
+      - _APP_CONNECTIONS_CACHE
+      - _APP_CONNECTIONS_QUEUE
+      - _APP_REGION
+      - _APP_WORKER_PER_CORE
 
   appwrite-usage:
     entrypoint: usage

@@ -195,6 +195,7 @@ $server->onStart(function () use ($stats, $register, $containerId, &$statsDocume
      */
     Timer::tick(5000, function () use ($register, $stats, &$statsDocument, $logError) {
         $payload = [];
+
         foreach ($stats as $projectId => $value) {
             $payload[$projectId] = $stats->get($projectId, 'connectionsTotal');
         }
