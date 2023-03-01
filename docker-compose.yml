@@ -85,6 +85,7 @@ services:
       - ./public:/usr/src/code/public
       - ./src:/usr/src/code/src
       - ./dev:/usr/local/dev
+      - ./vendor/utopia-php/storage:/usr/src/code/vendor/utopia-php/storage
     depends_on:
       - mariadb
       - redis
@@ -580,6 +581,23 @@ services:
       - _APP_MAINTENANCE_RETENTION_ABUSE
       - _APP_MAINTENANCE_RETENTION_AUDIT
       - _APP_MAINTENANCE_RETENTION_SCHEDULES
+
+  appwrite-backup:
+    entrypoint: backup
+    <<: *x-logging
+    container_name: appwrite-backup
+    image: appwrite-dev
+    networks:
+      - appwrite
+    volumes:
+      - ./app:/usr/src/code/app
+      - ./src:/usr/src/code/src
+      - appwrite-certificates:/storage/certificates:rw
+      - ./vendor/utopia-php/cli:/usr/src/code/vendor/utopia-php/cli
+    environment:
+      - _APP_ENV
+      - _APP_CONNECTIONS_STORAGE
+      - _APP_BACKUP_HEARTBEAT
 
   appwrite-worker-usage:
     entrypoint: worker-usage
