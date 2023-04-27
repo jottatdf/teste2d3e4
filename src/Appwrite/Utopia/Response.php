@@ -72,8 +72,10 @@ use Appwrite\Utopia\Response\Model\HealthQueue;
 use Appwrite\Utopia\Response\Model\HealthStatus;
 use Appwrite\Utopia\Response\Model\HealthTime;
 use Appwrite\Utopia\Response\Model\HealthVersion;
+use Appwrite\Utopia\Response\Model\Installation;
 use Appwrite\Utopia\Response\Model\Mock; // Keep last
 use Appwrite\Utopia\Response\Model\Provider;
+use Appwrite\Utopia\Response\Model\Repository;
 use Appwrite\Utopia\Response\Model\Runtime;
 use Appwrite\Utopia\Response\Model\UsageBuckets;
 use Appwrite\Utopia\Response\Model\UsageCollection;
@@ -193,6 +195,12 @@ class Response extends SwooleResponse
     public const MODEL_BUILD_LIST = 'buildList';  // Not used anywhere yet
     public const MODEL_FUNC_PERMISSIONS = 'funcPermissions';
 
+    // VCS
+    public const MODEL_INSTALLATION = 'installation';
+    public const MODEL_INSTALLATION_LIST = 'installationList';
+    public const MODEL_REPOSITORY = 'repository';
+    public const MODEL_REPOSITORY_LIST = 'repositoryList';
+
     // Project
     public const MODEL_PROJECT = 'project';
     public const MODEL_PROJECT_LIST = 'projectList';
@@ -208,6 +216,7 @@ class Response extends SwooleResponse
     public const MODEL_DOMAIN_LIST = 'domainList';
     public const MODEL_VARIABLE = 'variable';
     public const MODEL_VARIABLE_LIST = 'variableList';
+    public const MODEL_VCS = 'vcs';
 
     // Health
     public const MODEL_HEALTH_STATUS = 'healthStatus';
@@ -263,6 +272,8 @@ class Response extends SwooleResponse
             ->setModel(new BaseList('Teams List', self::MODEL_TEAM_LIST, 'teams', self::MODEL_TEAM))
             ->setModel(new BaseList('Memberships List', self::MODEL_MEMBERSHIP_LIST, 'memberships', self::MODEL_MEMBERSHIP))
             ->setModel(new BaseList('Functions List', self::MODEL_FUNCTION_LIST, 'functions', self::MODEL_FUNCTION))
+            ->setModel(new BaseList('Installations List', self::MODEL_INSTALLATION_LIST, 'installations', self::MODEL_INSTALLATION))
+            ->setModel(new BaseList('Repositories List', self::MODEL_REPOSITORY_LIST, 'repositories', self::MODEL_REPOSITORY))
             ->setModel(new BaseList('Runtimes List', self::MODEL_RUNTIME_LIST, 'runtimes', self::MODEL_RUNTIME))
             ->setModel(new BaseList('Deployments List', self::MODEL_DEPLOYMENT_LIST, 'deployments', self::MODEL_DEPLOYMENT))
             ->setModel(new BaseList('Executions List', self::MODEL_EXECUTION_LIST, 'executions', self::MODEL_EXECUTION))
@@ -317,6 +328,8 @@ class Response extends SwooleResponse
             ->setModel(new Team())
             ->setModel(new Membership())
             ->setModel(new Func())
+            ->setModel(new Installation())
+            ->setModel(new Repository())
             ->setModel(new Runtime())
             ->setModel(new Deployment())
             ->setModel(new Execution())

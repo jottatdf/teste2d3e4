@@ -177,6 +177,9 @@ services:
       - _APP_GRAPHQL_MAX_BATCH_SIZE
       - _APP_GRAPHQL_MAX_COMPLEXITY
       - _APP_GRAPHQL_MAX_DEPTH
+      - VCS_GITHUB_PRIVATE_KEY
+      - VCS_GITHUB_APP_ID
+      - VCS_GITHUB_NAME
 
   appwrite-realtime:
     entrypoint: realtime
@@ -372,6 +375,8 @@ services:
     volumes: 
       - ./app:/usr/src/code/app
       - ./src:/usr/src/code/src
+      - appwrite-functions:/storage/functions:rw
+      - appwrite-builds:/storage/builds:rw
     depends_on:
       - redis
       - mariadb
@@ -391,6 +396,11 @@ services:
       - _APP_DB_PASS
       - _APP_LOGGING_PROVIDER
       - _APP_LOGGING_CONFIG
+      - _APP_GITHUB_PRIVATE_KEY
+      - _APP_GITHUB_APP_ID
+      - VCS_GITHUB_PRIVATE_KEY
+      - VCS_GITHUB_APP_ID
+      - VCS_GITHUB_NAME
 
   appwrite-worker-certificates:
     entrypoint: worker-certificates
