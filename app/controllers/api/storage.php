@@ -326,7 +326,6 @@ App::delete('/v1/storage/buckets/:bucketId')
     });
 
 App::post('/v1/storage/buckets/:bucketId/files')
-    ->alias('/v1/storage/files', ['bucketId' => 'default'])
     ->desc('Create File')
     ->groups(['api', 'storage'])
     ->label('scope', 'files.write')
@@ -669,7 +668,6 @@ App::post('/v1/storage/buckets/:bucketId/files')
     });
 
 App::get('/v1/storage/buckets/:bucketId/files')
-    ->alias('/v1/storage/files', ['bucketId' => 'default'])
     ->desc('List Files')
     ->groups(['api', 'storage'])
     ->label('scope', 'files.read')
@@ -746,7 +744,6 @@ App::get('/v1/storage/buckets/:bucketId/files')
     });
 
 App::get('/v1/storage/buckets/:bucketId/files/:fileId')
-    ->alias('/v1/storage/files/:fileId', ['bucketId' => 'default'])
     ->desc('Get File')
     ->groups(['api', 'storage'])
     ->label('scope', 'files.read')
@@ -793,7 +790,6 @@ App::get('/v1/storage/buckets/:bucketId/files/:fileId')
     });
 
 App::get('/v1/storage/buckets/:bucketId/files/:fileId/preview')
-    ->alias('/v1/storage/files/:fileId/preview', ['bucketId' => 'default'])
     ->desc('Get File Preview')
     ->groups(['api', 'storage'])
     ->label('scope', 'files.read')
@@ -959,7 +955,6 @@ App::get('/v1/storage/buckets/:bucketId/files/:fileId/preview')
     });
 
 App::get('/v1/storage/buckets/:bucketId/files/:fileId/download')
-    ->alias('/v1/storage/files/:fileId/download', ['bucketId' => 'default'])
     ->desc('Get File for Download')
     ->groups(['api', 'storage'])
     ->label('scope', 'files.read')
@@ -1099,7 +1094,6 @@ App::get('/v1/storage/buckets/:bucketId/files/:fileId/download')
     });
 
 App::get('/v1/storage/buckets/:bucketId/files/:fileId/view')
-    ->alias('/v1/storage/files/:fileId/view', ['bucketId' => 'default'])
     ->desc('Get File for View')
     ->groups(['api', 'storage'])
     ->label('scope', 'files.read')
@@ -1250,7 +1244,6 @@ App::get('/v1/storage/buckets/:bucketId/files/:fileId/view')
     });
 
 App::put('/v1/storage/buckets/:bucketId/files/:fileId')
-    ->alias('/v1/storage/files/:fileId', ['bucketId' => 'default'])
     ->desc('Update File')
     ->groups(['api', 'storage'])
     ->label('scope', 'files.write')
@@ -1353,7 +1346,6 @@ App::put('/v1/storage/buckets/:bucketId/files/:fileId')
     });
 
 App::delete('/v1/storage/buckets/:bucketId/files/:fileId')
-    ->alias('/v1/storage/files/:fileId', ['bucketId' => 'default'])
     ->desc('Delete File')
     ->groups(['api', 'storage'])
     ->label('scope', 'files.write')

@@ -40,19 +40,22 @@ class HTTPTest extends Scope
 
     public function testHumans()
     {
+        $previousEndpoint = $this->client->getEndpoint();
+        $this->client->setEndpoint("http://localhost");
         /**
          * Test for SUCCESS
          */
-        $response = $this->client->call(Client::METHOD_GET, '/humans.txt', \array_merge([
-            'origin' => 'http://localhost',
-        ]));
+        $response = $this->client->call(Client::METHOD_GET, '/humans.txt');
 
         $this->assertEquals(200, $response['headers']['status-code']);
         $this->assertStringContainsString('# humanstxt.org/', $response['body']);
+        $this->client->setEndpoint($previousEndpoint);
     }
 
     public function testRobots()
     {
+        $previousEndpoint = $this->client->getEndpoint();
+        $this->client->setEndpoint("http://localhost");
         /**
          * Test for SUCCESS
          */
@@ -62,6 +65,7 @@ class HTTPTest extends Scope
 
         $this->assertEquals(200, $response['headers']['status-code']);
         $this->assertStringContainsString('# robotstxt.org/', $response['body']);
+        $this->client->setEndpoint($previousEndpoint);
     }
 
     public function testAcmeChallenge()
@@ -87,8 +91,7 @@ class HTTPTest extends Scope
             'origin' => 'http://localhost',
         ]));
 
-        // Check for too many path segments
-        $this->assertEquals(400, $response['headers']['status-code']);
+        $this->assertEquals(404, $response['headers']['status-code']);
 
         // Cleanup
         $this->client->setEndpoint($previousEndpoint);
@@ -140,7 +143,10 @@ class HTTPTest extends Scope
 
     public function testVersions()
     {
-        /**
+        $previousEndpoint = $this->client->getEndpoint();
+        $this->client->setEndpoint("http://localhost");
+
+         /**
          * Test without header
          */
         $response = $this->client->call(Client::METHOD_GET, '/versions', \array_merge([
@@ -159,6 +165,8 @@ class HTTPTest extends Scope
         $this->assertIsString($body['server-python']);
         $this->assertIsString($body['server-ruby']);
         $this->assertIsString($body['console-cli']);
+
+        $this->client->setEndpoint($previousEndpoint);
     }
 
     public function testDefaultOAuth2()

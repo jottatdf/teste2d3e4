@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3eadbfe5543aafdf8682ea0465159e3c",
+    "content-hash": "2e4922f6477f9180a18d9dcce13c0a1b",
     "packages": [
         {
             "name": "adhocore/jwt",
@@ -2218,16 +2218,16 @@
         },
         {
             "name": "utopia-php/framework",
-            "version": "0.28.4",
+            "version": "dev-feat-routing-v2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/utopia-php/framework.git",
-                "reference": "98c5469efe195aeecc63745dbf8e2f357f8cedac"
+                "reference": "557afb898f9cab0331513e567564db4e987f4e0f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/utopia-php/framework/zipball/98c5469efe195aeecc63745dbf8e2f357f8cedac",
-                "reference": "98c5469efe195aeecc63745dbf8e2f357f8cedac",
+                "url": "https://api.github.com/repos/utopia-php/framework/zipball/557afb898f9cab0331513e567564db4e987f4e0f",
+                "reference": "557afb898f9cab0331513e567564db4e987f4e0f",
                 "shasum": ""
             },
             "require": {
@@ -2235,9 +2235,9 @@
             },
             "require-dev": {
                 "laravel/pint": "^1.2",
-                "phpstan/phpstan": "1.9.x-dev",
-                "phpunit/phpunit": "^9.5.25",
-                "vimeo/psalm": "4.27.0"
+                "phpbench/phpbench": "^1.2",
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": "^9.5.25"
             },
             "type": "library",
             "autoload": {
@@ -2257,9 +2257,9 @@
             ],
             "support": {
                 "issues": "https://github.com/utopia-php/framework/issues",
-                "source": "https://github.com/utopia-php/framework/tree/0.28.4"
+                "source": "https://github.com/utopia-php/framework/tree/feat-routing-v2"
             },
-            "time": "2023-06-03T14:09:22+00:00"
+            "time": "2023-07-18T12:50:36+00:00"
         },
         {
             "name": "utopia-php/image",
@@ -3031,16 +3031,16 @@
     "packages-dev": [
         {
             "name": "appwrite/sdk-generator",
-            "version": "0.33.6",
+            "version": "0.33.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/appwrite/sdk-generator.git",
-                "reference": "237fe97b68090a244382c36f96482c352880a38c"
+                "reference": "9f5db4a637b23879ceacea9ed2d33b0486771ffc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/appwrite/sdk-generator/zipball/237fe97b68090a244382c36f96482c352880a38c",
-                "reference": "237fe97b68090a244382c36f96482c352880a38c",
+                "url": "https://api.github.com/repos/appwrite/sdk-generator/zipball/9f5db4a637b23879ceacea9ed2d33b0486771ffc",
+                "reference": "9f5db4a637b23879ceacea9ed2d33b0486771ffc",
                 "shasum": ""
             },
             "require": {
@@ -3076,9 +3076,9 @@
             "description": "Appwrite PHP library for generating API SDKs for multiple programming languages and platforms",
             "support": {
                 "issues": "https://github.com/appwrite/sdk-generator/issues",
-                "source": "https://github.com/appwrite/sdk-generator/tree/0.33.6"
+                "source": "https://github.com/appwrite/sdk-generator/tree/0.33.7"
             },
-            "time": "2023-07-10T16:27:53+00:00"
+            "time": "2023-07-12T12:15:43+00:00"
         },
         {
             "name": "doctrine/deprecations",
@@ -5650,9 +5650,18 @@
             "time": "2023-06-08T12:52:13+00:00"
         }
     ],
-    "aliases": [],
+    "aliases": [
+        {
+            "package": "utopia-php/framework",
+            "version": "dev-feat-routing-v2",
+            "alias": "0.28.9",
+            "alias_normalized": "0.28.9.0"
+        }
+    ],
     "minimum-stability": "stable",
-    "stability-flags": [],
+    "stability-flags": {
+        "utopia-php/framework": 20
+    },
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
