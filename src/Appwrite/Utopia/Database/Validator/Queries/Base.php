@@ -18,13 +18,21 @@ class Base extends Queries
     /**
      * Expression constructor
      *
+     * Collections parameter is used to override the default collections we get from
+     * config, if not provided collections config is used
+     *
      * @param string $collection
      * @param string[] $allowedAttributes
+     * @param array $collections
+     *
      * @throws \Exception
      */
-    public function __construct(string $collection, array $allowedAttributes)
+    public function __construct(string $collection, array $allowedAttributes, array $collections = [])
     {
-        $collection = Config::getParam('collections', [])[$collection];
+        if (empty($collections)) {
+            $collections = Config::getParam('collections');
+        }
+        $collection = $collections[$collection];
         // array for constant lookup time
         $allowedAttributesLookup = [];
         foreach ($allowedAttributes as $attribute) {
