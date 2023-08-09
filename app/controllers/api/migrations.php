@@ -146,12 +146,12 @@ App::post('/v1/migrations/firebase/oauth')
             $dbForConsole->updateDocument('identities', $identity->getId(), $identity);
         }
 
-        if ($identity->getAttribute('secret')) {
-            $serviceAccount = $identity->getAttribute('secret');
+        if ($identity->getAttribute('secrets')) {
+            $serviceAccount = $identity->getAttribute('secrets');
         } else {
             $serviceAccount = $firebase->createServiceAccount($accessToken, $projectId);
             $identity = $identity
-                ->setAttribute('secret', $serviceAccount);
+                ->setAttribute('secrets', $serviceAccount);
 
             $dbForConsole->updateDocument('identities', $identity->getId(), $identity);
         }
@@ -162,7 +162,7 @@ App::post('/v1/migrations/firebase/oauth')
             'stage' => 'init',
             'source' => Firebase::getName(),
             'credentials' => [
-                'serviceAccount' => json_encode($serviceAccount),
+                'serviceAccount' => $serviceAccount,
             ],
             'resources' => $resources,
             'statusCounters' => '{}',
@@ -542,12 +542,12 @@ App::get('/v1/migrations/firebase/report/oauth')
             }
 
             // Get Service Account
-            if ($identity->getAttribute('secret')) {
-                $serviceAccount = $identity->getAttribute('secret');
+            if ($identity->getAttribute('secrets')) {
+                $serviceAccount = $identity->getAttribute('secrets');
             } else {
                 $serviceAccount = $firebase->createServiceAccount($accessToken, $projectId);
                 $identity = $identity
-                    ->setAttribute('secret', $serviceAccount);
+                    ->setAttribute('secrets', $serviceAccount);
 
                 $dbForConsole->updateDocument('identities', $identity->getId(), $identity);
             }
