@@ -42,6 +42,7 @@ use Utopia\Validator\Text;
 use Utopia\Validator\WhiteList;
 use Appwrite\Auth\Validator\PasswordHistory;
 use Appwrite\Auth\Validator\PasswordDictionary;
+use Utopia\Validator\Boolean;
 
 $oauthDefaultSuccess = '/auth/oauth2/success';
 $oauthDefaultFailure = '/auth/oauth2/failure';
@@ -2235,6 +2236,7 @@ App::post('/v1/account/verification')
     ->label('abuse-limit', 10)
     ->label('abuse-key', 'url:{url},userId:{userId}')
     ->param('url', '', fn($clients) => new Host($clients), 'URL to redirect the user back to your app from the verification email. Only URLs from hostnames in your project platform list are allowed. This requirement helps to prevent an [open redirect](https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html) attack against your project API.', false, ['clients']) // TODO add built-in confirm page
+    ->param('type', 'link', new WhiteList(['link', 'code']), 'The type of verification email to be sent. ', true)
     ->inject('request')
     ->inject('response')
     ->inject('project')
@@ -2243,7 +2245,7 @@ App::post('/v1/account/verification')
     ->inject('locale')
     ->inject('events')
     ->inject('mails')
-    ->action(function (string $url, Request $request, Response $response, Document $project, Document $user, Database $dbForProject, Locale $locale, Event $events, Mail $mails) {
+    ->action(function (string $url, bool $code, Request $request, Response $response, Document $project, Document $user, Database $dbForProject, Locale $locale, Event $events, Mail $mails) {
 
         if (empty(App::getEnv('_APP_SMTP_HOST'))) {
             throw new Exception(Exception::GENERAL_SMTP_DISABLED, 'SMTP Disabled');
@@ -2254,6 +2256,14 @@ App::post('/v1/account/verification')
         $isAppUser = Auth::isAppUser($roles);
         $verificationSecret = Auth::tokenGenerator();
         $expire = DateTime::addSeconds(new \DateTime(), Auth::TOKEN_EXPIRATION_CONFIRM);
+
+        if ($code === true) {
+            $verificationSecret = Auth::codeGenerator();
+            $expire = DateTime::addSeconds(new \DateTime(), Auth::TOKEN_EXPIRATION_PHONE);
+        } else {
+            $verificationSecret = Auth::tokenGenerator();
+            $expire = DateTime::addSeconds(new \DateTime(), Auth::TOKEN_EXPIRATION_CONFIRM);
+        }
 
         $verification = new Document([
             '$id' => ID::unique(),
@@ -2280,6 +2290,21 @@ App::post('/v1/account/verification')
         $url = Template::parseURL($url);
         $url['query'] = Template::mergeQuery(((isset($url['query'])) ? $url['query'] : ''), ['userId' => $user->getId(), 'secret' => $verificationSecret, 'expire' => $expire]);
         $url = Template::unParseURL($url);
+        
+        // if ($code === true) {
+        //     $mails
+        //         ->setType(MAIL_TYPE_VERIFICATION_CODE)
+        //         ->setCode($verificationSecret)
+        //     ;
+        // } else {
+        //     $url = Template::parseURL($url);
+        //     $url['query'] = Template::mergeQuery(((isset($url['query'])) ? $url['query'] : ''), ['userId' => $user->getId(), 'secret' => $verificationSecret, 'expire' => $expire]);
+        //     $url = Template::unParseURL($url);
+        //     $mails
+        //         ->setType(MAIL_TYPE_VERIFICATION_URL)
+        //         ->setUrl($url)
+        //     ;
+        // }
 
         $projectName = $project->isEmpty() ? 'Console' : $project->getAttribute('name', '[APP-NAME]');
         $from = $project->isEmpty() || $project->getId() === 'console' ? '' : \sprintf($locale->getText('emails.sender'), $projectName);
@@ -2309,7 +2334,7 @@ App::post('/v1/account/verification')
             ->setRecipient($user->getAttribute('email'))
             ->setName($user->getAttribute('name') ?? '')
             ->trigger()
-        ;
+            ;
 
         $events
             ->setParam('userId', $user->getId())
