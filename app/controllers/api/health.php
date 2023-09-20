@@ -74,11 +74,10 @@ App::get('/v1/health/db')
 
         foreach ($configs as $key => $config) {
             foreach ($config as $database) {
+                $checkStart = \microtime(true);
+
                 try {
                     $adapter = $pools->get($database)->pop()->getResource();
-
-                    $checkStart = \microtime(true);
-
                     if ($adapter->ping()) {
                         $output[] = new Document([
                             'name' => $key . " ($database)",
