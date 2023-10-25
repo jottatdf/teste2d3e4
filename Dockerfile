@@ -74,6 +74,8 @@ RUN mkdir -p /storage/uploads && \
 # Executables
 RUN chmod +x /usr/local/bin/doctor && \
     chmod +x /usr/local/bin/maintenance &&  \
+    chmod +x /usr/local/bin/database-backup &&  \
+    chmod +x /usr/local/bin/database-restore &&  \
     chmod +x /usr/local/bin/usage && \
     chmod +x /usr/local/bin/install && \
     chmod +x /usr/local/bin/upgrade && \
@@ -118,6 +120,12 @@ RUN echo "opcache.enable_cli=1" >> /usr/local/etc/php/conf.d/appwrite.ini
 RUN echo "default_socket_timeout=-1" >> /usr/local/etc/php/conf.d/appwrite.ini
 RUN echo "opcache.jit_buffer_size=100M" >> /usr/local/etc/php/conf.d/appwrite.ini
 RUN echo "opcache.jit=1235" >> /usr/local/etc/php/conf.d/appwrite.ini
+
+RUN \
+  apk update \
+  && apk add --no-cache \
+  docker \
+  && rm -rf /var/cache/apk/*
 
 EXPOSE 80
 

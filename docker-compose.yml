@@ -820,6 +820,56 @@ services:
   #     - SMARTHOST_HOST=smtp
   #     - SMARTHOST_PORT=587
 
+  xtrabackup:
+    image: percona/percona-xtrabackup:8.0.33
+    command: sleep infinity
+    volumes:
+      - backup-data:/backups:rw
+      - appwrite-mariadb:/var/lib/mysql:r
+    networks:
+      - appwrite
+    user: 'root:root'
+
+  appwrite-backup:
+    image: appwrite-dev
+    <<: *x-logging
+    entrypoint: database-backup
+    command: 
+      - --database=db_fra1_03
+    networks:
+      - appwrite
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./app:/usr/src/code/app
+      - ./src:/usr/src/code/src
+      - backup-data:/backups:rw
+    depends_on:
+      - redis
+    environment:
+      - _APP_BACKUPS_INTERVAL=120
+      - _APP_BACKUPS_START_TIME=21:08
+      - _APP_CONNECTIONS_DB_REPLICAS
+      - _APP_CONNECTIONS_BACKUPS_STORAGE
+      - _APP_LOGGING_PROVIDER
+      - _APP_LOGGING_CONFIG
+
+  appwrite-restore:
+    image: appwrite-dev
+    command: sleep infinity
+    networks:
+      - appwrite
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./app:/usr/src/code/app
+      - ./src:/usr/src/code/src
+      - backup-data:/backups:rw
+      - appwrite-mariadb:/var/lib/mysql:rw
+    depends_on:
+      - redis
+    environment:
+      - _APP_CONNECTIONS_DB_REPLICAS
+      - _APP_CONNECTIONS_BACKUPS_STORAGE
+
   redis:
     image: redis:7.0.4-alpine
     <<: *x-logging
@@ -971,4 +1021,5 @@ volumes:
   appwrite-builds:
   appwrite-influxdb:
   appwrite-config:
+  backup-data:
   # appwrite-chronograf:
