@@ -39,7 +39,8 @@ class UsageHook extends Usage
      */
     public function action($register, $cache, $pools): void
     {
-        Timer::tick(30000, function () use ($register, $cache, $pools) {
+        $interval = (int) App::getEnv('_APP_USAGE_AGGREGATION_INTERVAL', '50000');
+        Timer::tick($interval, function () use ($register, $cache, $pools) {
 
             $offset = count(self::$stats);
             $projects = array_slice(self::$stats, 0, $offset, true);
@@ -65,6 +66,38 @@ class UsageHook extends Usage
                         foreach ($this->periods as $period => $format) {
                             $time = 'inf' === $period ? null : date($format, time());
                             $id = \md5("{$time}_{$period}_{$key}");
+
+                            /**
+                             * Infinity daily
+                             */
+                            if ('infd' === $period) {
+                                $isInfDaily = array_reduce(["files", "buckets", "users"], function ($carry, $word) use ($key) {
+                                    return $carry || str_contains($key, $word);
+                                }, false);
+
+                                if (!$isInfDaily) {
+                                    continue;
+                                }
+
+                                $infinity = $dbForProject->getDocument('stats', \md5(self::INFINITY_PERIOD . $key));
+                                $infinityDaily = $dbForProject->getDocument('stats', $id);
+
+                                if ($infinityDaily->isEmpty()) {
+                                    $dbForProject->createDocument('stats', new Document([
+                                        '$id' => $id,
+                                        'period' => $period,
+                                        'time' => $time,
+                                        'metric' => $key,
+                                        'value' => $infinity['value'] ?? 0,
+                                        'region' => App::getEnv('_APP_REGION', 'default'),
+                                    ]));
+                                } else {
+                                    $infinityDaily->setAttribute('value', $infinity['value'] ?? 0);
+                                    $dbForProject->updateDocument('stats', $infinityDaily->getId(), $infinityDaily);
+                                }
+                                continue;
+                            }
+
 
                             try {
                                 $dbForProject->createDocument('stats_v2', new Document([
