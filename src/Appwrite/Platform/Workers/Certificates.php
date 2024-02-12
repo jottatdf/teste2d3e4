@@ -429,28 +429,14 @@ class Certificates extends Action
         // Send mail to administratore mail
         $template = Template::fromFile(__DIR__ . '/../../../../app/config/locale/templates/email-certificate-failed.tpl');
         $template->setParam('{{domain}}', $domain);
-        $template->setParam('{{error}}', \nl2br($errorMessage));
+        $template->setParam('{{error}}', \nl2br($errorMessage), false);
         $template->setParam('{{attempts}}', $attempt);
 
-        // TODO: Use setbodyTemplate once #7307 is merged
-        $subject = 'Certificate failed to generate';
-        $body = Template::fromFile(__DIR__ . '/../../../../app/config/locale/templates/email-base-styled.tpl');
-
-        $subject = \sprintf($locale->getText("emails.certificate.subject"), $domain);
-
-        $message = Template::fromFile(__DIR__ . '/../../../../app/config/locale/templates/email-inner-base.tpl');
-        $message
-            ->setParam('{{body}}', $locale->getText("emails.certificate.body"), escapeHtml: false)
-            ->setParam('{{hello}}', $locale->getText("emails.certificate.hello"))
-            ->setParam('{{footer}}', $locale->getText("emails.certificate.footer"))
-            ->setParam('{{thanks}}', $locale->getText("emails.certificate.thanks"))
-            ->setParam('{{signature}}', $locale->getText("emails.certificate.signature"));
-        $body = $message->render();
+        $subject = 'Certificate for ' . $domain . ' failed to generate';
 
         $emailVariables = [
             'direction' => $locale->getText('settings.direction'),
             'domain' => $domain,
-            'error' => '<br><pre>' . $errorMessage . '</pre>',
             'attempt' => $attempt,
             'project' => 'Console',
             'redirect' => 'https://' . $domain,
@@ -458,7 +444,8 @@ class Certificates extends Action
 
         $queueForMails
             ->setSubject($subject)
-            ->setBody($body)
+            ->setbodyTemplate(__DIR__ . '/../../../../app/config/locale/templates/email-base-styled.tpl')
+            ->setBody($template->render())
             ->setName('Appwrite Administrator')
             ->setVariables($emailVariables)
             ->setRecipient(App::getEnv('_APP_SYSTEM_SECURITY_EMAIL_ADDRESS'))

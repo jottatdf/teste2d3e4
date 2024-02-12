@@ -1185,9 +1185,9 @@ App::post('/v1/account/tokens/magic-url')
             'team' => '',
             'project' => $project->getAttribute('name'),
             'redirect' => $url,
-            'agentDevice' => '<strong>' . ( $agentDevice['deviceBrand'] ?? $agentDevice['deviceBrand'] ?? 'UNKNOWN') . '</strong>',
-            'agentClient' => '<strong>' . ($agentClient['clientName'] ?? 'UNKNOWN') . '</strong>',
-            'agentOs' => '<strong>' . ($agentOs['osName'] ?? 'UNKNOWN') . '</strong>',
+            'agentDevice' => '<strong>' . (!empty($agentDevice['deviceBrand']) ? $agentDevice['deviceBrand'] : 'Unknown device') . '</strong>',
+            'agentClient' => '<strong>' . (!empty($agentOs['clientName']) ? $agentOs['clientName'] : 'Unknown client') . '</strong>',
+            'agentOs' => '<strong>' . (!empty($agentOs['osName']) ? $agentOs['osName'] : 'Unknown OS') . '</strong>',
             'phrase' => '<strong>' . (!empty($phrase) ? $phrase : '') . '</strong>'
         ];
 
@@ -1413,17 +1413,11 @@ App::post('/v1/account/tokens/email')
             'team' => '',
             'project' => $project->getAttribute('name'),
             'otp' => $tokenSecret,
-            'agentDevice' => '<strong>' . ( $agentDevice['deviceBrand'] ?? $agentDevice['deviceBrand'] ?? 'UNKNOWN') . '</strong>',
-            'agentClient' => '<strong>' . ($agentClient['clientName'] ?? 'UNKNOWN') . '</strong>',
-            'agentOs' => '<strong>' . ($agentOs['osName'] ?? 'UNKNOWN') . '</strong>',
+            'agentDevice' => '<strong>' . (!empty($agentDevice['deviceBrand']) ? $agentDevice['deviceBrand'] : 'Unknown device') . '</strong>',
+            'agentClient' => '<strong>' . (!empty($agentOs['clientName']) ? $agentOs['clientName'] : 'Unknown client') . '</strong>',
+            'agentOs' => '<strong>' . (!empty($agentOs['osName']) ? $agentOs['osName'] : 'Unknown OS') . '</strong>',
             'phrase' => '<strong>' . (!empty($phrase) ? $phrase : '') . '</strong>'
         ];
-
-        $queueForMails
-            ->setSubject($subject)
-            ->setBody($body)
-            ->setVariables($emailVariables)
-            ->setRecipient($email)
             ->trigger();
 
         $queueForEvents->setPayload(

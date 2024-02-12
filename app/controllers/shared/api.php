@@ -345,7 +345,13 @@ App::init()
         switch ($route->getLabel('auth.type', '')) {
             case 'emailPassword':
                 if (($auths['emailPassword'] ?? true) === false) {
-                    throw new Exception(Exception::USER_AUTH_METHOD_UNSUPPORTED, 'Email / Password authentication is disabled for this project');
+                    throw new Exception(Exception::USER_AUTH_METHOD_UNSUPPORTED, 'Email & Password authentication is disabled for this project');
+                }
+                break;
+
+            case 'email-otp':
+                if (($auths['emailOtp'] ?? true) === false) {
+                    throw new Exception(Exception::USER_AUTH_METHOD_UNSUPPORTED, 'Email OTP authentication is disabled for this project');
                 }
                 break;
 
