@@ -1301,7 +1301,18 @@ App::post('/v1/account/sessions/phone')
             Authorization::skip(fn () => $dbForProject->createDocument('users', $user));
         }
 
-        $secret = Auth::codeGenerator();
+        $secret = null;
+        $triggerSMS = true;
+        $mockNumbers = $project->getAttribute('auths', [])['mockNumbers'] ?? [];
+        foreach ($mockNumbers as $mockNumber) {
+            if ($mockNumber['phone'] === $phone) {
+                $secret = $mockNumber['otp'];
+                $triggerSMS = false;
+                break;
+            }
+        }
+
+        $secret ??= Auth::codeGenerator();
         $expire = DateTime::formatTz(DateTime::addSeconds(new \DateTime(), Auth::TOKEN_EXPIRATION_PHONE));
 
         $token = new Document([
@@ -1326,21 +1337,22 @@ App::post('/v1/account/sessions/phone')
 
         $dbForProject->deleteCachedDocument('users', $user->getId());
 
-        $message = Template::fromFile(__DIR__ . '/../../config/locale/templates/sms-base.tpl');
+        if ($triggerSMS) {
+            $message = Template::fromFile(__DIR__ . '/../../config/locale/templates/sms-base.tpl');
 
-        $customTemplate = $project->getAttribute('templates', [])['sms.login-' . $locale->default] ?? [];
-        if (!empty($customTemplate)) {
-            $message = $customTemplate['message'] ?? $message;
+            $customTemplate = $project->getAttribute('templates', [])['sms.login-' . $locale->default] ?? [];
+            if (!empty($customTemplate)) {
+                $message = $customTemplate['message'] ?? $message;
+            }
+
+            $message = $message->setParam('{{token}}', $secret);
+            $message = $message->render();
+
+            $queueForMessaging
+                ->setRecipient($phone)
+                ->setMessage($message)
+                ->trigger();
         }
-
-        $message = $message->setParam('{{token}}', $secret);
-        $message = $message->render();
-
-        $queueForMessaging
-            ->setRecipient($phone)
-            ->setMessage($message)
-            ->setProject($project)
-            ->trigger();
 
         $queueForEvents->setPayload(
             $response->output(
@@ -1433,7 +1445,7 @@ App::put('/v1/account/sessions/phone')
 
         /**
          * We act like we're updating and validating
-         *  the recovery token but actually we don't need it anymore.
+         * the recovery token but actually we don't need it anymore.
          */
         $dbForProject->deleteDocument('tokens', $token);
         $dbForProject->deleteCachedDocument('users', $user->getId());
@@ -2891,7 +2903,8 @@ App::post('/v1/account/verification/phone')
             throw new Exception(Exception::GENERAL_PHONE_DISABLED);
         }
 
-        if (empty($user->getAttribute('phone'))) {
+        $phone = $user->getAttribute('phone');
+        if (!$phone) {
             throw new Exception(Exception::USER_PHONE_NOT_FOUND);
         }
 
@@ -2902,7 +2915,19 @@ App::post('/v1/account/verification/phone')
         $roles = Authorization::getRoles();
         $isPrivilegedUser = Auth::isPrivilegedUser($roles);
         $isAppUser = Auth::isAppUser($roles);
-        $secret = Auth::codeGenerator();
+
+        $secret = null;
+        $triggerSMS = true;
+        $mockNumbers = $project->getAttribute('auths', [])['mockNumbers'] ?? [];
+        foreach ($mockNumbers as $mockNumber) {
+            if ($mockNumber['phone'] === $phone) {
+                $secret = $mockNumber['otp'];
+                $triggerSMS = false;
+                break;
+            }
+        }
+
+        $secret ??= Auth::codeGenerator();
         $expire = DateTime::addSeconds(new \DateTime(), Auth::TOKEN_EXPIRATION_CONFIRM);
 
         $verification = new Document([
@@ -2927,22 +2952,23 @@ App::post('/v1/account/verification/phone')
 
         $dbForProject->deleteCachedDocument('users', $user->getId());
 
-        $message = Template::fromFile(__DIR__ . '/../../config/locale/templates/sms-base.tpl');
+        if ($triggerSMS) {
+            $message = Template::fromFile(__DIR__ . '/../../config/locale/templates/sms-base.tpl');
 
-        $customTemplate = $project->getAttribute('templates', [])['sms.verification-' . $locale->default] ?? [];
-        if (!empty($customTemplate)) {
-            $message = $customTemplate['message'] ?? $message;
+            $customTemplate = $project->getAttribute('templates', [])['sms.verification-' . $locale->default] ?? [];
+            if (!empty($customTemplate)) {
+                $message = $customTemplate['message'] ?? $message;
+            }
+
+            $message = $message->setParam('{{token}}', $secret);
+            $message = $message->render();
+
+            $queueForMessaging
+                ->setRecipient($phone)
+                ->setMessage($message)
+                ->trigger()
+            ;
         }
-
-        $message = $message->setParam('{{token}}', $secret);
-        $message = $message->render();
-
-        $queueForMessaging
-            ->setRecipient($user->getAttribute('phone'))
-            ->setMessage($message)
-            ->setProject($project)
-            ->trigger()
-        ;
 
         $queueForEvents
             ->setParam('userId', $user->getId())
