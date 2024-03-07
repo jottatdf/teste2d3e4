@@ -9,6 +9,7 @@ use Appwrite\Messaging\Adapter\Realtime;
 use Appwrite\Utopia\Response\Model\Deployment;
 use Appwrite\Vcs\Comment;
 use Exception;
+use Appwrite\Extend\Exception as AppwriteException;
 use Swoole\Coroutine as Co;
 use Executor\Executor;
 use Utopia\App;
@@ -144,34 +145,22 @@ class Builds extends Action
         $startTime = DateTime::now();
         $durationStart = \microtime(true);
         $buildId = $deployment->getAttribute('buildId', '');
-        $isNewBuild = empty($buildId);
+        if ($buildId->isEmpty()) {
+            throw new AppwriteException(AppwriteException::BUILD_NOT_FOUND);
+        }
+
         $deviceFunctions = $getFunctionsDevice($project->getId());
 
-        if ($isNewBuild) {
-            $buildId = ID::unique();
-            $build = $dbForProject->createDocument('builds', new Document([
-                '$id' => $buildId,
-                '$permissions' => [],
-                'startTime' => $startTime,
-                'deploymentInternalId' => $deployment->getInternalId(),
-                'deploymentId' => $deployment->getId(),
-                'status' => 'processing',
-                'path' => '',
-                'runtime' => $function->getAttribute('runtime'),
-                'source' => $deployment->getAttribute('path', ''),
-                'sourceType' => strtolower($deviceFunctions->getType()),
-                'logs' => '',
-                'endTime' => null,
-                'duration' => 0,
-                'size' => 0
-            ]));
-
-            $deployment->setAttribute('buildId', $build->getId());
-            $deployment->setAttribute('buildInternalId', $build->getInternalId());
-            $deployment = $dbForProject->updateDocument('deployments', $deployment->getId(), $deployment);
-        } else {
-            $build = $dbForProject->getDocument('builds', $buildId);
+        $build = $dbForProject->getDocument('builds', $buildId);
+        if ($build->getAttribute('status') === 'cancelled') {
+            return;
         }
+
+        $isNewBuild = empty($build->getAttribute('startTime'));
+        $build->setAttribute('status', 'processing');
+        $build->setAttribute('startTime', $startTime);
+        $build->setAttribute('sourceType', strtolower($deviceFunctions->getType()));
+        $build = $dbForProject->updateDocument('builds', $buildId, $build);
 
         $source = $deployment->getAttribute('path', '');
         $installationId = $deployment->getAttribute('installationId', '');
@@ -210,6 +199,12 @@ class Builds extends Action
                 $stdout = '';
                 $stderr = '';
                 Console::execute('mkdir -p /tmp/builds/' . \escapeshellcmd($buildId), '', $stdout, $stderr);
+
+                $build = $dbForProject->getDocument('builds', $buildId);
+                if ($build->getAttribute('status') === 'cancelled') {
+                    return;
+                }
+
                 $exit = Console::execute($gitCloneCommand, '', $stdout, $stderr);
 
                 if ($exit !== 0) {
@@ -390,6 +385,11 @@ class Builds extends Action
             $response = null;
             $err = null;
 
+            $build = $dbForProject->getDocument('builds', $buildId);
+            if ($build->getAttribute('status') === 'cancelled') {
+                return;
+            }
+
             Co::join([
                 Co\go(function () use ($executor, &$response, $project, $deployment, $source, $function, $runtime, $vars, $command, &$err) {
                     try {
@@ -456,6 +456,10 @@ class Builds extends Action
                 ]);
 
             if ($err) {
+                $build = $dbForProject->getDocument('builds', $buildId);
+                if ($build->getAttribute('status') === 'cancelled') {
+                    return;
+                }
                 throw $err;
             }
 
@@ -495,6 +499,11 @@ class Builds extends Action
                 ->setAttribute('active', !empty($function->getAttribute('schedule')) && !empty($function->getAttribute('deployment')));
             Authorization::skip(fn() => $dbForConsole->updateDocument('schedules', $schedule->getId(), $schedule));
         } catch (\Throwable $th) {
+            $build = $dbForProject->getDocument('builds', $buildId);
+            if ($build->getAttribute('status') === 'cancelled') {
+                return;
+            }
+
             $endTime = DateTime::now();
             $durationEnd = \microtime(true);
             $build->setAttribute('endTime', $endTime);
