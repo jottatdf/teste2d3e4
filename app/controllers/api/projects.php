@@ -9,6 +9,7 @@ use Appwrite\Network\Validator\Origin;
 use Appwrite\Template\Template;
 use Appwrite\Utopia\Database\Validator\ProjectId;
 use Appwrite\Utopia\Database\Validator\Queries\Projects;
+use Appwrite\Utopia\Request;
 use Appwrite\Utopia\Response;
 use PHPMailer\PHPMailer\PHPMailer;
 use Utopia\Abuse\Adapters\TimeLimit;
@@ -71,12 +72,12 @@ App::post('/v1/projects')
     ->param('legalCity', '', new Text(256), 'Project legal City. Max length: 256 chars.', true)
     ->param('legalAddress', '', new Text(256), 'Project legal Address. Max length: 256 chars.', true)
     ->param('legalTaxId', '', new Text(256), 'Project legal Tax ID. Max length: 256 chars.', true)
+    ->inject('request')
     ->inject('response')
     ->inject('dbForConsole')
     ->inject('cache')
     ->inject('pools')
-    ->action(function (string $projectId, string $name, string $teamId, string $region, string $description, string $logo, string $url, string $legalName, string $legalCountry, string $legalState, string $legalCity, string $legalAddress, string $legalTaxId, Response $response, Database $dbForConsole, Cache $cache, Group $pools) {
-
+    ->action(function (string $projectId, string $name, string $teamId, string $region, string $description, string $logo, string $url, string $legalName, string $legalCountry, string $legalState, string $legalCity, string $legalAddress, string $legalTaxId, Request $request, Response $response, Database $dbForConsole, Cache $cache, Group $pools) {
 
         $team = $dbForConsole->getDocument('teams', $teamId);
 
@@ -85,8 +86,15 @@ App::post('/v1/projects')
         }
 
         $auth = Config::getParam('auth', []);
-        $auths = ['limit' => 0, 'maxSessions' => APP_LIMIT_USER_SESSIONS_DEFAULT, 'passwordHistory' => 0, 'passwordDictionary' => false, 'duration' => Auth::TOKEN_EXPIRATION_LOGIN_LONG, 'personalDataCheck' => false];
-        foreach ($auth as $index => $method) {
+        $auths = [
+            'limit' => 0,
+            'maxSessions' => APP_LIMIT_USER_SESSIONS_DEFAULT,
+            'passwordHistory' => 0,
+            'passwordDictionary' => false,
+            'duration' => Auth::TOKEN_EXPIRATION_LOGIN_LONG,
+            'personalDataCheck' => false
+        ];
+        foreach ($auth as $method) {
             $auths[$method['key'] ?? ''] = true;
         }
 
@@ -121,8 +129,8 @@ App::post('/v1/projects')
             }
         }
 
-        $databaseOverride = App::getEnv('_APP_DATABASE_OVERRIDE', null);
-        $index = array_search($databaseOverride, $databases);
+        $databaseOverride = App::getEnv('_APP_DATABASE_OVERRIDE');
+        $index = \array_search($databaseOverride, $databases);
         if ($index !== false) {
             $database = $databases[$index];
         } else {
@@ -132,6 +140,25 @@ App::post('/v1/projects')
         if ($projectId === 'console') {
             throw new Exception(Exception::PROJECT_RESERVED_PROJECT, "'console' is a reserved project.");
         }
+
+        // TODO: One in 20 projects use shared tables. Temporary until all projects are using shared tables.
+        if (
+            !\mt_rand(0, 19)
+            && App::getEnv('_APP_EDITION', 'self-hosted') !== 'self-hosted'
+        ) {
+            $database = DATABASE_SHARED_TABLES;
+        }
+
+        // TODO: Allow overriding in development mode. Temporary until all projects are using shared tables.
+        if (
+            App::isDevelopment()
+            && App::getEnv('_APP_EDITION', 'self-hosted') !== 'self-hosted'
+            && $request->getHeader('x-appwrite-share-tables', false)
+        ) {
+            $database = DATABASE_SHARED_TABLES;
+        }
+
+        \var_dump('DATABASE: ' . $database);
 
         try {
             $project = $dbForConsole->createDocument('projects', new Document([
@@ -164,14 +191,26 @@ App::post('/v1/projects')
                 'keys' => null,
                 'auths' => $auths,
                 'search' => implode(' ', [$projectId, $name]),
-                'database' => $database
+                'database' => $database,
             ]));
-        } catch (Duplicate $th) {
+        } catch (Duplicate) {
             throw new Exception(Exception::PROJECT_ALREADY_EXISTS);
         }
 
         $dbForProject = new Database($pools->get($database)->pop()->getResource(), $cache);
-        $dbForProject->setNamespace("_{$project->getInternalId()}");
+
+        if ($database === DATABASE_SHARED_TABLES) {
+            $dbForProject
+                ->setSharedTables(true)
+                ->setTenant($project->getInternalId())
+                ->setNamespace('');
+        } else {
+            $dbForProject
+                ->setSharedTables(false)
+                ->setTenant(null)
+                ->setNamespace('_' . $project->getInternalId());
+        }
+
         $dbForProject->create();
 
         $audit = new Audit($dbForProject);
@@ -188,33 +227,19 @@ App::post('/v1/projects')
                 continue;
             }
 
-            $attributes = [];
-            $indexes = [];
+            $attributes = \array_map(function (array $attribute) {
+                return new Document($attribute);
+            }, $collection['attributes']);
 
-            foreach ($collection['attributes'] as $attribute) {
-                $attributes[] = new Document([
-                    '$id' => $attribute['$id'],
-                    'type' => $attribute['type'],
-                    'size' => $attribute['size'],
-                    'required' => $attribute['required'],
-                    'signed' => $attribute['signed'],
-                    'array' => $attribute['array'],
-                    'filters' => $attribute['filters'],
-                    'default' => $attribute['default'] ?? null,
-                    'format' => $attribute['format'] ?? ''
-                ]);
-            }
+            $indexes = \array_map(function (array $index) {
+                return new Document($index);
+            }, $collection['indexes']);
 
-            foreach ($collection['indexes'] as $index) {
-                $indexes[] = new Document([
-                    '$id' => $index['$id'],
-                    'type' => $index['type'],
-                    'attributes' => $index['attributes'],
-                    'lengths' => $index['lengths'],
-                    'orders' => $index['orders'],
-                ]);
+            try {
+                $dbForProject->createCollection($key, $attributes, $indexes);
+            } catch (Duplicate) {
+                // Collection already exists
             }
-            $dbForProject->createCollection($key, $attributes, $indexes);
         }
 
         $response
@@ -820,7 +845,7 @@ App::post('/v1/projects/:projectId/webhooks')
 
         $webhook = $dbForConsole->createDocument('webhooks', $webhook);
 
-        $dbForConsole->deleteCachedDocument('projects', $project->getId());
+        $dbForConsole->purgeCachedDocument('projects', $project->getId());
 
         $response
             ->setStatusCode(Response::STATUS_CODE_CREATED)
@@ -941,7 +966,7 @@ App::put('/v1/projects/:projectId/webhooks/:webhookId')
             ->setAttribute('httpPass', $httpPass);
 
         $dbForConsole->updateDocument('webhooks', $webhook->getId(), $webhook);
-        $dbForConsole->deleteCachedDocument('projects', $project->getId());
+        $dbForConsole->purgeCachedDocument('projects', $project->getId());
 
         $response->dynamic($webhook, Response::MODEL_WEBHOOK);
     });
@@ -980,7 +1005,7 @@ App::patch('/v1/projects/:projectId/webhooks/:webhookId/signature')
         $webhook->setAttribute('signatureKey', \bin2hex(\random_bytes(64)));
 
         $dbForConsole->updateDocument('webhooks', $webhook->getId(), $webhook);
-        $dbForConsole->deleteCachedDocument('projects', $project->getId());
+        $dbForConsole->purgeCachedDocument('projects', $project->getId());
 
         $response->dynamic($webhook, Response::MODEL_WEBHOOK);
     });
@@ -1017,7 +1042,7 @@ App::delete('/v1/projects/:projectId/webhooks/:webhookId')
 
         $dbForConsole->deleteDocument('webhooks', $webhook->getId());
 
-        $dbForConsole->deleteCachedDocument('projects', $project->getId());
+        $dbForConsole->purgeCachedDocument('projects', $project->getId());
 
         $response->noContent();
     });
@@ -1067,7 +1092,7 @@ App::post('/v1/projects/:projectId/keys')
 
         $key = $dbForConsole->createDocument('keys', $key);
 
-        $dbForConsole->deleteCachedDocument('projects', $project->getId());
+        $dbForConsole->purgeCachedDocument('projects', $project->getId());
 
         $response
             ->setStatusCode(Response::STATUS_CODE_CREATED)
@@ -1181,7 +1206,7 @@ App::put('/v1/projects/:projectId/keys/:keyId')
 
         $dbForConsole->updateDocument('keys', $key->getId(), $key);
 
-        $dbForConsole->deleteCachedDocument('projects', $project->getId());
+        $dbForConsole->purgeCachedDocument('projects', $project->getId());
 
         $response->dynamic($key, Response::MODEL_KEY);
     });
@@ -1218,7 +1243,7 @@ App::delete('/v1/projects/:projectId/keys/:keyId')
 
         $dbForConsole->deleteDocument('keys', $key->getId());
 
-        $dbForConsole->deleteCachedDocument('projects', $project->getId());
+        $dbForConsole->purgeCachedDocument('projects', $project->getId());
 
         $response->noContent();
     });
@@ -1268,7 +1293,7 @@ App::post('/v1/projects/:projectId/platforms')
 
         $platform = $dbForConsole->createDocument('platforms', $platform);
 
-        $dbForConsole->deleteCachedDocument('projects', $project->getId());
+        $dbForConsole->purgeCachedDocument('projects', $project->getId());
 
         $response
             ->setStatusCode(Response::STATUS_CODE_CREATED)
@@ -1383,7 +1408,7 @@ App::put('/v1/projects/:projectId/platforms/:platformId')
 
         $dbForConsole->updateDocument('platforms', $platform->getId(), $platform);
 
-        $dbForConsole->deleteCachedDocument('projects', $project->getId());
+        $dbForConsole->purgeCachedDocument('projects', $project->getId());
 
         $response->dynamic($platform, Response::MODEL_PLATFORM);
     });
@@ -1420,7 +1445,7 @@ App::delete('/v1/projects/:projectId/platforms/:platformId')
 
         $dbForConsole->deleteDocument('platforms', $platformId);
 
-        $dbForConsole->deleteCachedDocument('projects', $project->getId());
+        $dbForConsole->purgeCachedDocument('projects', $project->getId());
 
         $response->noContent();
     });

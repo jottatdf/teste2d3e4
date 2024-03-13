@@ -114,7 +114,7 @@ App::post('/v1/teams')
             ]);
 
             $membership = $dbForProject->createDocument('memberships', $membership);
-            $dbForProject->deleteCachedDocument('users', $user->getId());
+            $dbForProject->purgeCachedDocument('users', $user->getId());
         }
 
         $queueForEvents->setParam('teamId', $team->getId());
@@ -536,7 +536,7 @@ App::post('/v1/teams/:teamId/memberships')
 
             Authorization::skip(fn() => $dbForProject->increaseDocumentAttribute('teams', $team->getId(), 'total', 1));
 
-            $dbForProject->deleteCachedDocument('users', $invitee->getId());
+            $dbForProject->purgeCachedDocument('users', $invitee->getId());
         } else {
             try {
                 $membership = $dbForProject->createDocument('memberships', $membership);
@@ -844,7 +844,7 @@ App::patch('/v1/teams/:teamId/memberships/:membershipId')
         /**
          * Replace membership on profile
          */
-        $dbForProject->deleteCachedDocument('users', $profile->getId());
+        $dbForProject->purgeCachedDocument('users', $profile->getId());
 
         $queueForEvents
             ->setParam('teamId', $team->getId())
@@ -959,13 +959,13 @@ App::patch('/v1/teams/:teamId/memberships/:membershipId/status')
                 Permission::delete(Role::user($user->getId())),
             ]));
 
-        $dbForProject->deleteCachedDocument('users', $user->getId());
+        $dbForProject->purgeCachedDocument('users', $user->getId());
 
         Authorization::setRole(Role::user($userId)->toString());
 
         $membership = $dbForProject->updateDocument('memberships', $membership->getId(), $membership);
 
-        $dbForProject->deleteCachedDocument('users', $user->getId());
+        $dbForProject->purgeCachedDocument('users', $user->getId());
 
         Authorization::skip(fn() => $dbForProject->increaseDocumentAttribute('teams', $team->getId(), 'total', 1));
 

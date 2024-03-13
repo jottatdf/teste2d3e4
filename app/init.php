@@ -12,11 +12,11 @@ if (\file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
 }
 
-ini_set('memory_limit', '512M');
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-ini_set('default_socket_timeout', -1);
-error_reporting(E_ALL);
+\ini_set('memory_limit', '512M');
+\ini_set('display_errors', 1);
+\ini_set('display_startup_errors', 1);
+\ini_set('default_socket_timeout', -1);
+\error_reporting(E_ALL);
 
 use Appwrite\Event\Migration;
 use Appwrite\Event\Usage;
@@ -34,6 +34,7 @@ use Appwrite\Network\Validator\Origin;
 use Appwrite\OpenSSL\OpenSSL;
 use Appwrite\URL\URL as AppwriteURL;
 use Utopia\App;
+use Utopia\CLI\Console;
 use Utopia\Logger\Logger;
 use Utopia\Cache\Adapter\Redis as RedisCache;
 use Utopia\Cache\Cache;
@@ -142,7 +143,8 @@ const APP_SOCIAL_DEV = 'https://dev.to/appwrite';
 const APP_SOCIAL_STACKSHARE = 'https://stackshare.io/appwrite';
 const APP_SOCIAL_YOUTUBE = 'https://www.youtube.com/c/appwrite?sub_confirmation=1';
 const APP_HOSTNAME_INTERNAL = 'appwrite';
-// Database Reconnect
+// Database
+const DATABASE_SHARED_TABLES = 'database_db_self_hosted_shared_tables';
 const DATABASE_RECONNECT_SLEEP = 2;
 const DATABASE_RECONNECT_MAX_ATTEMPTS = 10;
 // Database Worker Types
@@ -654,14 +656,13 @@ $register->set('pools', function () {
 
     foreach ($connections as $key => $connection) {
         $type = $connection['type'] ?? '';
-        $dsns = $connection['dsns'] ?? '';
-        $multipe = $connection['multiple'] ?? false;
+        $multiple = $connection['multiple'] ?? false;
         $schemes = $connection['schemes'] ?? [];
         $config = [];
         $dsns = explode(',', $connection['dsns'] ?? '');
         foreach ($dsns as &$dsn) {
             $dsn = explode('=', $dsn);
-            $name = ($multipe) ? $key . '_' . $dsn[0] : $key;
+            $name = ($multiple) ? $key . '_' . $dsn[0] : $key;
             $dsn = $dsn[1] ?? '';
             $config[] = $name;
             if (empty($dsn)) {
@@ -684,47 +685,38 @@ $register->set('pools', function () {
             /**
              * Get Resource
              *
-             * Creation could be reused accross connection types like database, cache, queue, etc.
+             * Creation could be reused across connection types like database, cache, queue, etc.
              *
              * Resource assignment to an adapter will happen below.
              */
-            switch ($dsnScheme) {
-                case 'mysql':
-                case 'mariadb':
-                    $resource = function () use ($dsnHost, $dsnPort, $dsnUser, $dsnPass, $dsnDatabase) {
-                        return new PDOProxy(function () use ($dsnHost, $dsnPort, $dsnUser, $dsnPass, $dsnDatabase) {
-                            return new PDO("mysql:host={$dsnHost};port={$dsnPort};dbname={$dsnDatabase};charset=utf8mb4", $dsnUser, $dsnPass, array(
-                                PDO::ATTR_TIMEOUT => 3, // Seconds
-                                PDO::ATTR_PERSISTENT => true,
-                                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                                PDO::ATTR_ERRMODE => App::isDevelopment() ? PDO::ERRMODE_WARNING : PDO::ERRMODE_SILENT, // If in production mode, warnings are not displayed
-                                PDO::ATTR_EMULATE_PREPARES => true,
-                                PDO::ATTR_STRINGIFY_FETCHES => true
-                            ));
-                        });
-                    };
-                    break;
-                case 'redis':
-                    $resource = function () use ($dsnHost, $dsnPort, $dsnPass) {
-                        $redis = new Redis();
-                        @$redis->pconnect($dsnHost, (int)$dsnPort);
-                        if ($dsnPass) {
-                            $redis->auth($dsnPass);
-                        }
-                        $redis->setOption(Redis::OPT_READ_TIMEOUT, -1);
+            $resource = match ($dsnScheme) {
+                'mysql',
+                'mariadb' => function () use ($dsnHost, $dsnPort, $dsnUser, $dsnPass, $dsnDatabase) {
+                    return new PDOProxy(function () use ($dsnHost, $dsnPort, $dsnUser, $dsnPass, $dsnDatabase) {
+                        return new PDO("mysql:host={$dsnHost};port={$dsnPort};dbname={$dsnDatabase};charset=utf8mb4", $dsnUser, $dsnPass, array(
+                            PDO::ATTR_TIMEOUT => 3, // Seconds
+                            PDO::ATTR_PERSISTENT => true,
+                            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                            PDO::ATTR_EMULATE_PREPARES => true,
+                            PDO::ATTR_STRINGIFY_FETCHES => true
+                        ));
+                    });
+                },
+                'redis' => function () use ($dsnHost, $dsnPort, $dsnPass) {
+                    $redis = new Redis();
+                    @$redis->pconnect($dsnHost, (int)$dsnPort);
+                    if ($dsnPass) {
+                        $redis->auth($dsnPass);
+                    }
+                    $redis->setOption(Redis::OPT_READ_TIMEOUT, -1);
 
-                        return $redis;
-                    };
-                    break;
-
-                default:
-                    throw new Exception(Exception::GENERAL_SERVER_ERROR, "Invalid scheme");
-                    break;
-            }
+                    return $redis;
+                },
+                default => throw new Exception(Exception::GENERAL_SERVER_ERROR, "Invalid scheme"),
+            };
 
             $pool = new Pool($name, $poolSize, function () use ($type, $resource, $dsn) {
                 // Get Adapter
-                $adapter = null;
                 switch ($type) {
                     case 'database':
                         $adapter = match ($dsn->getScheme()) {
@@ -733,7 +725,7 @@ $register->set('pools', function () {
                             default => null
                         };
 
-                        $adapter->setDefaultDatabase($dsn->getPath());
+                        $adapter->setDatabase($dsn->getPath());
                         break;
                     case 'pubsub':
                         $adapter = $resource();
@@ -753,7 +745,6 @@ $register->set('pools', function () {
 
                     default:
                         throw new Exception(Exception::GENERAL_SERVER_ERROR, "Server error: Missing adapter implementation.");
-                        break;
                 }
 
                 return $adapter;
@@ -950,24 +941,25 @@ App::setResource('clients', function ($request, $console, $project) {
         fn ($node) => $node['hostname'],
         \array_filter(
             $console->getAttribute('platforms', []),
-            fn ($node) => (isset($node['type']) && ($node['type'] === Origin::CLIENT_TYPE_WEB) && isset($node['hostname']) && !empty($node['hostname']))
+            fn ($node) => (isset($node['type']) && ($node['type'] === Origin::CLIENT_TYPE_WEB) && !empty($node['hostname']))
         )
     );
 
-    $clients = \array_unique(
-        \array_merge(
-            $clientsConsole,
-            \array_map(
-                fn ($node) => $node['hostname'],
-                \array_filter(
-                    $project->getAttribute('platforms', []),
-                    fn ($node) => (isset($node['type']) && ($node['type'] === Origin::CLIENT_TYPE_WEB || $node['type'] === Origin::CLIENT_TYPE_FLUTTER_WEB) && isset($node['hostname']) && !empty($node['hostname']))
-                )
-            )
-        )
-    );
+    $clients = $clientsConsole;
+    $platforms = $project->getAttribute('platforms', []);
 
-    return $clients;
+    foreach ($platforms as $node) {
+        if (
+            isset($node['type']) &&
+            ($node['type'] === Origin::CLIENT_TYPE_WEB ||
+            $node['type'] === Origin::CLIENT_TYPE_FLUTTER_WEB) &&
+            !empty($node['hostname'])
+        ) {
+            $clients[] = $node['hostname'];
+        }
+    }
+
+    return \array_unique($clients);
 }, ['request', 'console', 'project']);
 
 App::setResource('user', function ($mode, $project, $console, $request, $response, $dbForProject, $dbForConsole) {
@@ -1139,10 +1131,21 @@ App::setResource('dbForProject', function (Group $pools, Database $dbForConsole,
     $database = new Database($dbAdapter, $cache);
 
     $database
-        ->setNamespace('_' . $project->getInternalId())
         ->setMetadata('host', \gethostname())
         ->setMetadata('project', $project->getId())
         ->setTimeout(APP_DATABASE_TIMEOUT_MILLISECONDS);
+
+    if ($project->getAttribute('database') === DATABASE_SHARED_TABLES) {
+        $database
+            ->setSharedTables(true)
+            ->setTenant($project->getInternalId())
+            ->setNamespace('');
+    } else {
+        $database
+            ->setSharedTables(false)
+            ->setTenant(null)
+            ->setNamespace('_' . $project->getInternalId());
+    }
 
     return $database;
 }, ['pools', 'dbForConsole', 'cache', 'project']);
@@ -1151,8 +1154,7 @@ App::setResource('dbForConsole', function (Group $pools, Cache $cache) {
     $dbAdapter = $pools
         ->get('console')
         ->pop()
-        ->getResource()
-    ;
+        ->getResource();
 
     $database = new Database($dbAdapter, $cache);
 
@@ -1168,22 +1170,35 @@ App::setResource('dbForConsole', function (Group $pools, Cache $cache) {
 App::setResource('getProjectDB', function (Group $pools, Database $dbForConsole, $cache) {
     $databases = []; // TODO: @Meldiron This should probably be responsibility of utopia-php/pools
 
-    $getProjectDB = function (Document $project) use ($pools, $dbForConsole, $cache, &$databases) {
+    return function (Document $project) use ($pools, $dbForConsole, $cache, &$databases) {
         if ($project->isEmpty() || $project->getId() === 'console') {
             return $dbForConsole;
         }
 
         $databaseName = $project->getAttribute('database');
 
-        if (isset($databases[$databaseName])) {
-            $database = $databases[$databaseName];
-
+        $configure = (function (Database $database) use ($project) {
             $database
-                ->setNamespace('_' . $project->getInternalId())
                 ->setMetadata('host', \gethostname())
                 ->setMetadata('project', $project->getId())
                 ->setTimeout(APP_DATABASE_TIMEOUT_MILLISECONDS);
 
+            if ($project->getAttribute('database') === DATABASE_SHARED_TABLES) {
+                $database
+                    ->setSharedTables(true)
+                    ->setTenant($project->getInternalId())
+                    ->setNamespace('');
+            } else {
+                $database
+                    ->setSharedTables(false)
+                    ->setTenant(null)
+                    ->setNamespace('_' . $project->getInternalId());
+            }
+        });
+
+        if (isset($databases[$databaseName])) {
+            $database = $databases[$databaseName];
+            $configure($database);
             return $database;
         }
 
@@ -1193,19 +1208,11 @@ App::setResource('getProjectDB', function (Group $pools, Database $dbForConsole,
             ->getResource();
 
         $database = new Database($dbAdapter, $cache);
-
         $databases[$databaseName] = $database;
-
-        $database
-            ->setNamespace('_' . $project->getInternalId())
-            ->setMetadata('host', \gethostname())
-            ->setMetadata('project', $project->getId())
-            ->setTimeout(APP_DATABASE_TIMEOUT_MILLISECONDS);
+        $configure($database);
 
         return $database;
     };
-
-    return $getProjectDB;
 }, ['pools', 'dbForConsole', 'cache']);
 
 App::setResource('cache', function (Group $pools) {
@@ -1262,62 +1269,60 @@ function getDevice($root): Device
             Console::warning($e->getMessage() . 'Invalid DSN. Defaulting to Local device.');
         }
 
-        switch ($device) {
-            case Storage::DEVICE_S3:
-                return new S3($root, $accessKey, $accessSecret, $bucket, $region, $acl);
-            case STORAGE::DEVICE_DO_SPACES:
-                return new DOSpaces($root, $accessKey, $accessSecret, $bucket, $region, $acl);
-            case Storage::DEVICE_BACKBLAZE:
-                return new Backblaze($root, $accessKey, $accessSecret, $bucket, $region, $acl);
-            case Storage::DEVICE_LINODE:
-                return new Linode($root, $accessKey, $accessSecret, $bucket, $region, $acl);
-            case Storage::DEVICE_WASABI:
-                return new Wasabi($root, $accessKey, $accessSecret, $bucket, $region, $acl);
-            case Storage::DEVICE_LOCAL:
-            default:
-                return new Local($root);
-        }
+        return match ($device) {
+            Storage::DEVICE_S3 => new S3($root, $accessKey, $accessSecret, $bucket, $region, $acl),
+            Storage::DEVICE_DO_SPACES => new DOSpaces($root, $accessKey, $accessSecret, $bucket, $region, $acl),
+            Storage::DEVICE_BACKBLAZE => new Backblaze($root, $accessKey, $accessSecret, $bucket, $region, $acl),
+            Storage::DEVICE_LINODE => new Linode($root, $accessKey, $accessSecret, $bucket, $region, $acl),
+            Storage::DEVICE_WASABI => new Wasabi($root, $accessKey, $accessSecret, $bucket, $region, $acl),
+            default => new Local($root),
+        };
     } else {
-        switch (strtolower(App::getEnv('_APP_STORAGE_DEVICE', Storage::DEVICE_LOCAL) ?? '')) {
-            case Storage::DEVICE_LOCAL:
-            default:
-                return new Local($root);
-            case Storage::DEVICE_S3:
-                $s3AccessKey = App::getEnv('_APP_STORAGE_S3_ACCESS_KEY', '');
-                $s3SecretKey = App::getEnv('_APP_STORAGE_S3_SECRET', '');
-                $s3Region = App::getEnv('_APP_STORAGE_S3_REGION', '');
-                $s3Bucket = App::getEnv('_APP_STORAGE_S3_BUCKET', '');
-                $s3Acl = 'private';
-                return new S3($root, $s3AccessKey, $s3SecretKey, $s3Bucket, $s3Region, $s3Acl);
-            case Storage::DEVICE_DO_SPACES:
-                $doSpacesAccessKey = App::getEnv('_APP_STORAGE_DO_SPACES_ACCESS_KEY', '');
-                $doSpacesSecretKey = App::getEnv('_APP_STORAGE_DO_SPACES_SECRET', '');
-                $doSpacesRegion = App::getEnv('_APP_STORAGE_DO_SPACES_REGION', '');
-                $doSpacesBucket = App::getEnv('_APP_STORAGE_DO_SPACES_BUCKET', '');
-                $doSpacesAcl = 'private';
-                return new DOSpaces($root, $doSpacesAccessKey, $doSpacesSecretKey, $doSpacesBucket, $doSpacesRegion, $doSpacesAcl);
-            case Storage::DEVICE_BACKBLAZE:
-                $backblazeAccessKey = App::getEnv('_APP_STORAGE_BACKBLAZE_ACCESS_KEY', '');
-                $backblazeSecretKey = App::getEnv('_APP_STORAGE_BACKBLAZE_SECRET', '');
-                $backblazeRegion = App::getEnv('_APP_STORAGE_BACKBLAZE_REGION', '');
-                $backblazeBucket = App::getEnv('_APP_STORAGE_BACKBLAZE_BUCKET', '');
-                $backblazeAcl = 'private';
-                return new Backblaze($root, $backblazeAccessKey, $backblazeSecretKey, $backblazeBucket, $backblazeRegion, $backblazeAcl);
-            case Storage::DEVICE_LINODE:
-                $linodeAccessKey = App::getEnv('_APP_STORAGE_LINODE_ACCESS_KEY', '');
-                $linodeSecretKey = App::getEnv('_APP_STORAGE_LINODE_SECRET', '');
-                $linodeRegion = App::getEnv('_APP_STORAGE_LINODE_REGION', '');
-                $linodeBucket = App::getEnv('_APP_STORAGE_LINODE_BUCKET', '');
-                $linodeAcl = 'private';
-                return new Linode($root, $linodeAccessKey, $linodeSecretKey, $linodeBucket, $linodeRegion, $linodeAcl);
-            case Storage::DEVICE_WASABI:
-                $wasabiAccessKey = App::getEnv('_APP_STORAGE_WASABI_ACCESS_KEY', '');
-                $wasabiSecretKey = App::getEnv('_APP_STORAGE_WASABI_SECRET', '');
-                $wasabiRegion = App::getEnv('_APP_STORAGE_WASABI_REGION', '');
-                $wasabiBucket = App::getEnv('_APP_STORAGE_WASABI_BUCKET', '');
-                $wasabiAcl = 'private';
-                return new Wasabi($root, $wasabiAccessKey, $wasabiSecretKey, $wasabiBucket, $wasabiRegion, $wasabiAcl);
-        }
+        $device = strtolower(App::getEnv('_APP_STORAGE_DEVICE', Storage::DEVICE_LOCAL) ?? '');
+
+        return match ($device) {
+            Storage::DEVICE_S3 => new S3(
+                $root,
+                App::getEnv('_APP_STORAGE_S3_ACCESS_KEY', ''),
+                App::getEnv('_APP_STORAGE_S3_SECRET', ''),
+                App::getEnv('_APP_STORAGE_S3_BUCKET', ''),
+                App::getEnv('_APP_STORAGE_S3_REGION', ''),
+                'private'
+            ),
+            Storage::DEVICE_DO_SPACES => new DOSpaces(
+                $root,
+                App::getEnv('_APP_STORAGE_DO_SPACES_ACCESS_KEY', ''),
+                App::getEnv('_APP_STORAGE_DO_SPACES_SECRET', ''),
+                App::getEnv('_APP_STORAGE_DO_SPACES_BUCKET', ''),
+                App::getEnv('_APP_STORAGE_DO_SPACES_REGION', ''),
+                'private'
+            ),
+            Storage::DEVICE_BACKBLAZE => new Backblaze(
+                $root,
+                App::getEnv('_APP_STORAGE_BACKBLAZE_ACCESS_KEY', ''),
+                App::getEnv('_APP_STORAGE_BACKBLAZE_SECRET', ''),
+                App::getEnv('_APP_STORAGE_BACKBLAZE_BUCKET', ''),
+                App::getEnv('_APP_STORAGE_BACKBLAZE_REGION', ''),
+                'private'
+            ),
+            Storage::DEVICE_LINODE => new Linode(
+                $root,
+                App::getEnv('_APP_STORAGE_LINODE_ACCESS_KEY', ''),
+                App::getEnv('_APP_STORAGE_LINODE_SECRET', ''),
+                App::getEnv('_APP_STORAGE_LINODE_BUCKET', ''),
+                App::getEnv('_APP_STORAGE_LINODE_REGION', ''),
+                'private'
+            ),
+            Storage::DEVICE_WASABI => new Wasabi(
+                $root,
+                App::getEnv('_APP_STORAGE_WASABI_ACCESS_KEY', ''),
+                App::getEnv('_APP_STORAGE_WASABI_SECRET', ''),
+                App::getEnv('_APP_STORAGE_WASABI_BUCKET', ''),
+                App::getEnv('_APP_STORAGE_WASABI_REGION', ''),
+                'private'
+            ),
+            default => new Local($root),
+        };
     }
 }
 

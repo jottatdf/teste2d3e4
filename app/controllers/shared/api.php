@@ -407,7 +407,7 @@ App::shutdown()
             $session = array_shift($sessions);
             $dbForProject->deleteDocument('sessions', $session->getId());
         }
-        $dbForProject->deleteCachedDocument('users', $userId);
+        $dbForProject->purgeCachedDocument('users', $userId);
     });
 
 App::shutdown()
@@ -524,7 +524,9 @@ App::shutdown()
         }
 
         if (!empty($queueForDatabase->getType())) {
+            \var_dump('Before triggering database event');
             $queueForDatabase->trigger();
+            \var_dump('After triggering database event');
         }
 
         /**

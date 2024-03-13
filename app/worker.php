@@ -63,15 +63,31 @@ Server::setResource('dbForProject', function (Cache $cache, Registry $register, 
     }
 
     $pools = $register->get('pools');
-    $database = $pools
+
+    $adapter = $pools
         ->get($project->getAttribute('database'))
         ->pop()
-        ->getResource()
-    ;
+        ->getResource();
 
-    $adapter = new Database($database, $cache);
-    $adapter->setNamespace('_' . $project->getInternalId());
-    return $adapter;
+    $database = new Database($adapter, $cache);
+
+    $database
+        ->setMetadata('host', \gethostname())
+        ->setMetadata('project', $project->getId());
+
+    if ($project->getAttribute('database') === DATABASE_SHARED_TABLES) {
+        $database
+            ->setSharedTables(true)
+            ->setTenant($project->getInternalId())
+            ->setNamespace('');
+    } else {
+        $database
+            ->setSharedTables(false)
+            ->setTenant(null)
+            ->setNamespace('_' . $project->getInternalId());
+    }
+
+    return $database;
 }, ['cache', 'register', 'message', 'dbForConsole']);
 
 Server::setResource('project', function (Message $message, Database $dbForConsole) {
@@ -97,7 +113,19 @@ Server::setResource('getProjectDB', function (Group $pools, Database $dbForConso
 
         if (isset($databases[$databaseName])) {
             $database = $databases[$databaseName];
-            $database->setNamespace('_' . $project->getInternalId());
+
+            if ($project->getAttribute('database') === DATABASE_SHARED_TABLES) {
+                $database
+                    ->setSharedTables(true)
+                    ->setTenant($project->getInternalId())
+                    ->setNamespace('');
+            } else {
+                $database
+                    ->setSharedTables(false)
+                    ->setTenant(null)
+                    ->setNamespace('_' . $project->getInternalId());
+            }
+
             return $database;
         }
 
@@ -110,7 +138,17 @@ Server::setResource('getProjectDB', function (Group $pools, Database $dbForConso
 
         $databases[$databaseName] = $database;
 
-        $database->setNamespace('_' . $project->getInternalId());
+        if ($project->getAttribute('database') === DATABASE_SHARED_TABLES) {
+            $database
+                ->setSharedTables(true)
+                ->setTenant($project->getInternalId())
+                ->setNamespace('');
+        } else {
+            $database
+                ->setSharedTables(false)
+                ->setTenant(null)
+                ->setNamespace('_' . $project->getInternalId());
+        }
 
         return $database;
     };
@@ -235,7 +273,7 @@ try {
      * Any worker can be configured with the following env vars:
      * - _APP_WORKERS_NUM           The total number of worker processes
      * - _APP_WORKER_PER_CORE       The number of worker processes per core (ignored if _APP_WORKERS_NUM is set)
-     * - _APP_QUEUE_NAME  The name of the queue to read for database events
+     * - _APP_QUEUE_NAME            The name of the queue to read for database events
      */
     if ($workerName === 'databases') {
         $queueName = App::getEnv('_APP_QUEUE_NAME', 'database_db_main');

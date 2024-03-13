@@ -25,7 +25,7 @@ use Utopia\Registry\Registry;
 
 Authorization::disable();
 
-CLI::setResource('register', fn()=>$register);
+CLI::setResource('register', fn() => $register);
 
 CLI::setResource('cache', function ($pools) {
     $list = Config::getParam('pools-cache', []);
@@ -72,7 +72,7 @@ CLI::setResource('dbForConsole', function ($pools, $cache) {
             $collections = Config::getParam('collections', [])['console'];
             $last = \array_key_last($collections);
 
-            if (!($dbForConsole->exists($dbForConsole->getDefaultDatabase(), $last))) { /** TODO cache ready variable using registry */
+            if (!($dbForConsole->exists($dbForConsole->getDatabase(), $last))) { /** TODO cache ready variable using registry */
                 throw new Exception('Tables not ready yet.');
             }
 
@@ -103,7 +103,19 @@ CLI::setResource('getProjectDB', function (Group $pools, Database $dbForConsole,
 
         if (isset($databases[$databaseName])) {
             $database = $databases[$databaseName];
-            $database->setNamespace('_' . $project->getInternalId());
+
+            if ($project->getAttribute('database') === DATABASE_SHARED_TABLES) {
+                $database
+                    ->setSharedTables(true)
+                    ->setTenant($project->getInternalId())
+                    ->setNamespace('');
+            } else {
+                $database
+                    ->setSharedTables(false)
+                    ->setTenant(null)
+                    ->setNamespace('_' . $project->getInternalId());
+            }
+
             return $database;
         }
 
@@ -116,8 +128,19 @@ CLI::setResource('getProjectDB', function (Group $pools, Database $dbForConsole,
 
         $databases[$databaseName] = $database;
 
+        if ($project->getAttribute('database') === DATABASE_SHARED_TABLES) {
+            $database
+                ->setSharedTables(true)
+                ->setTenant($project->getInternalId())
+                ->setNamespace('');
+        } else {
+            $database
+                ->setSharedTables(false)
+                ->setTenant(null)
+                ->setNamespace('_' . $project->getInternalId());
+        }
+
         $database
-            ->setNamespace('_' . $project->getInternalId())
             ->setMetadata('host', \gethostname())
             ->setMetadata('project', $project->getId());
 

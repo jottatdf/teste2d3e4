@@ -150,13 +150,13 @@ function createAttribute(string $databaseId, string $collectionId, Document $att
     } catch (LimitException) {
         throw new Exception(Exception::ATTRIBUTE_LIMIT_EXCEEDED, 'Attribute limit exceeded');
     } catch (\Exception $e) {
-        $dbForProject->deleteCachedDocument('database_' . $db->getInternalId(), $collectionId);
-        $dbForProject->deleteCachedCollection('database_' . $db->getInternalId() . '_collection_' . $collection->getInternalId());
+        $dbForProject->purgeCachedDocument('database_' . $db->getInternalId(), $collectionId);
+        $dbForProject->purgeCachedCollection('database_' . $db->getInternalId() . '_collection_' . $collection->getInternalId());
         throw $e;
     }
 
-    $dbForProject->deleteCachedDocument('database_' . $db->getInternalId(), $collectionId);
-    $dbForProject->deleteCachedCollection('database_' . $db->getInternalId() . '_collection_' . $collection->getInternalId());
+    $dbForProject->purgeCachedDocument('database_' . $db->getInternalId(), $collectionId);
+    $dbForProject->purgeCachedCollection('database_' . $db->getInternalId() . '_collection_' . $collection->getInternalId());
 
     if ($type === Database::VAR_RELATIONSHIP && $options['twoWay']) {
         $twoWayKey = $options['twoWayKey'];
@@ -194,13 +194,13 @@ function createAttribute(string $databaseId, string $collectionId, Document $att
             $dbForProject->deleteDocument('attributes', $attribute->getId());
             throw new Exception(Exception::ATTRIBUTE_LIMIT_EXCEEDED, 'Attribute limit exceeded');
         } catch (\Exception $e) {
-            $dbForProject->deleteCachedDocument('database_' . $db->getInternalId(), $relatedCollection->getId());
-            $dbForProject->deleteCachedCollection('database_' . $db->getInternalId() . '_collection_' . $relatedCollection->getInternalId());
+            $dbForProject->purgeCachedDocument('database_' . $db->getInternalId(), $relatedCollection->getId());
+            $dbForProject->purgeCachedCollection('database_' . $db->getInternalId() . '_collection_' . $relatedCollection->getInternalId());
             throw $e;
         }
 
-        $dbForProject->deleteCachedDocument('database_' . $db->getInternalId(), $relatedCollection->getId());
-        $dbForProject->deleteCachedCollection('database_' . $db->getInternalId() . '_collection_' . $relatedCollection->getInternalId());
+        $dbForProject->purgeCachedDocument('database_' . $db->getInternalId(), $relatedCollection->getId());
+        $dbForProject->purgeCachedCollection('database_' . $db->getInternalId() . '_collection_' . $relatedCollection->getInternalId());
     }
 
     $queueForDatabase
@@ -355,7 +355,7 @@ function updateAttribute(
             $relatedOptions = \array_merge($relatedAttribute->getAttribute('options'), $options);
             $relatedAttribute->setAttribute('options', $relatedOptions);
             $dbForProject->updateDocument('attributes', $db->getInternalId() . '_' . $relatedCollection->getInternalId() . '_' . $primaryDocumentOptions['twoWayKey'], $relatedAttribute);
-            $dbForProject->deleteCachedDocument('database_' . $db->getInternalId(), $relatedCollection->getId());
+            $dbForProject->purgeCachedDocument('database_' . $db->getInternalId(), $relatedCollection->getId());
         }
     } else {
         $dbForProject->updateAttribute(
@@ -368,7 +368,7 @@ function updateAttribute(
     }
 
     $attribute = $dbForProject->updateDocument('attributes', $db->getInternalId() . '_' . $collection->getInternalId() . '_' . $key, $attribute);
-    $dbForProject->deleteCachedDocument('database_' . $db->getInternalId(), $collection->getId());
+    $dbForProject->purgeCachedDocument('database_' . $db->getInternalId(), $collection->getId());
 
     $queueForEvents
         ->setContext('collection', $collection)
@@ -694,8 +694,8 @@ App::delete('/v1/databases/:databaseId')
             throw new Exception(Exception::GENERAL_SERVER_ERROR, 'Failed to remove collection from DB');
         }
 
-        $dbForProject->deleteCachedDocument('databases', $database->getId());
-        $dbForProject->deleteCachedCollection('databases_' . $database->getInternalId());
+        $dbForProject->purgeCachedDocument('databases', $database->getId());
+        $dbForProject->purgeCachedCollection('databases_' . $database->getInternalId());
 
         $queueForDatabase
             ->setType(DATABASE_TYPE_DELETE_DATABASE)
@@ -1062,7 +1062,7 @@ App::delete('/v1/databases/:databaseId/collections/:collectionId')
             throw new Exception(Exception::GENERAL_SERVER_ERROR, 'Failed to remove collection from DB');
         }
 
-        $dbForProject->deleteCachedCollection('database_' . $database->getInternalId() . '_collection_' . $collection->getInternalId());
+        $dbForProject->purgeCachedCollection('database_' . $database->getInternalId() . '_collection_' . $collection->getInternalId());
 
         $queueForDatabase
             ->setType(DATABASE_TYPE_DELETE_COLLECTION)
@@ -2234,8 +2234,8 @@ App::delete('/v1/databases/:databaseId/collections/:collectionId/attributes/:key
             $attribute = $dbForProject->updateDocument('attributes', $attribute->getId(), $attribute->setAttribute('status', 'deleting'));
         }
 
-        $dbForProject->deleteCachedDocument('database_' . $db->getInternalId(), $collectionId);
-        $dbForProject->deleteCachedCollection('database_' . $db->getInternalId() . '_collection_' . $collection->getInternalId());
+        $dbForProject->purgeCachedDocument('database_' . $db->getInternalId(), $collectionId);
+        $dbForProject->purgeCachedCollection('database_' . $db->getInternalId() . '_collection_' . $collection->getInternalId());
 
         if ($attribute->getAttribute('type') === Database::VAR_RELATIONSHIP) {
             $options = $attribute->getAttribute('options');
@@ -2256,8 +2256,8 @@ App::delete('/v1/databases/:databaseId/collections/:collectionId/attributes/:key
                     $dbForProject->updateDocument('attributes', $relatedAttribute->getId(), $relatedAttribute->setAttribute('status', 'deleting'));
                 }
 
-                $dbForProject->deleteCachedDocument('database_' . $db->getInternalId(), $options['relatedCollection']);
-                $dbForProject->deleteCachedCollection('database_' . $db->getInternalId() . '_collection_' . $relatedCollection->getInternalId());
+                $dbForProject->purgeCachedDocument('database_' . $db->getInternalId(), $options['relatedCollection']);
+                $dbForProject->purgeCachedCollection('database_' . $db->getInternalId() . '_collection_' . $relatedCollection->getInternalId());
             }
         }
 
@@ -2439,7 +2439,7 @@ App::post('/v1/databases/:databaseId/collections/:collectionId/indexes')
             throw new Exception(Exception::INDEX_ALREADY_EXISTS);
         }
 
-        $dbForProject->deleteCachedDocument('database_' . $db->getInternalId(), $collectionId);
+        $dbForProject->purgeCachedDocument('database_' . $db->getInternalId(), $collectionId);
 
         $queueForDatabase
             ->setType(DATABASE_TYPE_CREATE_INDEX)
@@ -2606,7 +2606,7 @@ App::delete('/v1/databases/:databaseId/collections/:collectionId/indexes/:key')
             $index = $dbForProject->updateDocument('indexes', $index->getId(), $index->setAttribute('status', 'deleting'));
         }
 
-        $dbForProject->deleteCachedDocument('database_' . $db->getInternalId(), $collectionId);
+        $dbForProject->purgeCachedDocument('database_' . $db->getInternalId(), $collectionId);
 
         $queueForDatabase
             ->setType(DATABASE_TYPE_DELETE_INDEX)

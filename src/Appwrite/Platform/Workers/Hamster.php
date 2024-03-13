@@ -115,15 +115,26 @@ class Hamster extends Action
         Console::log("Getting stats for Project {$project->getId()}");
 
         try {
-            $db = $project->getAttribute('database');
+            $database = $project->getAttribute('database');
             $adapter = $pools
-                ->get($db)
+                ->get($database)
                 ->pop()
                 ->getResource();
 
             $dbForProject = new Database($adapter, $cache);
-            $dbForProject->setDefaultDatabase('appwrite');
-            $dbForProject->setNamespace('_' . $project->getInternalId());
+            $dbForProject->setDatabase('appwrite');
+
+            if ($database === DATABASE_SHARED_TABLES) {
+                $dbForProject
+                    ->setSharedTables(true)
+                    ->setTenant($project->getInternalId())
+                    ->setNamespace('');
+            } else {
+                $dbForProject
+                    ->setSharedTables(false)
+                    ->setTenant(null)
+                    ->setNamespace('_' . $project->getInternalId());
+            }
 
             $statsPerProject = [];
 
