@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+use Appwrite\Extend\Exception;
 use Appwrite\Utopia\Response;
 use Swoole\Process;
 use Swoole\Http\Server;
@@ -25,6 +26,24 @@ use Utopia\Logger\Log\User;
 use Utopia\Pools\Group;
 
 $http = new Server("0.0.0.0", App::getEnv('PORT', 80));
+
+App::setResource('startTime', function() {
+    return \microtime(true);
+});
+
+App::init()
+    ->inject('startTime')
+    ->inject('log')
+    ->inject('http')
+    ->action(function(float $startTime, Log $log, mixed $http) {
+        $stats = $http->stats();
+        $workersIdle = $stats['idle_worker_num'] ?? -1;
+        $workersTotal = $stats['worker_num'] ?? -1;
+
+        $log->addExtra('workersIdle', \strval($workersIdle));
+        $log->addExtra('workersTotal', \strval($workersTotal));
+        $log->addExtra('veryFirstInit', \strval(\microtime(true)));
+    });
 
 $payloadSize = 6 * (1024 * 1024); // 6MB
 $workerNumber = swoole_cpu_num() * intval(App::getEnv('_APP_WORKER_PER_CORE', 6));
@@ -222,9 +241,10 @@ $http->on('start', function (Server $http) use ($payloadSize, $register) {
     });
 });
 
-$http->on('request', function (SwooleRequest $swooleRequest, SwooleResponse $swooleResponse) use ($register) {
+$http->on('request', function (SwooleRequest $swooleRequest, SwooleResponse $swooleResponse) use ($register, $http) {
     App::setResource('swooleRequest', fn () => $swooleRequest);
     App::setResource('swooleResponse', fn () => $swooleResponse);
+    App::setResource('http', fn () => $http);
 
     $request = new Request($swooleRequest);
     $response = new Response($swooleResponse);
@@ -243,8 +263,22 @@ $http->on('request', function (SwooleRequest $swooleRequest, SwooleResponse $swo
 
     $app = new App('UTC');
 
+    $l = new Log();
+
+    $fd = $swooleRequest->fd;
+    $fd_info = $http->getClientInfo($fd);
+    $packetTimeStart = $fd_info['last_time'];
+    $l->addExtra('packetTimeStart', \strval($packetTimeStart));
+
+    App::setResource('log', fn() => $l);
+    App::setResource('swooleStartTime', fn() => \floatval($packetTimeStart));
+
+    $l->addExtra('GetPoolsStart', \strval(\microtime(true)));
+
     $pools = $register->get('pools');
     App::setResource('pools', fn () => $pools);
+
+    $l->addExtra('GetPoolsEnd', \strval(\microtime(true)));
 
     try {
         Authorization::cleanRoles();
@@ -326,5 +360,19 @@ $http->on('request', function (SwooleRequest $swooleRequest, SwooleResponse $swo
         $pools->reclaim();
     }
 });
+
+App::shutdown()
+    ->inject('swooleStartTime')
+    ->inject('log')
+    ->action(function(float $swooleStartTime, Log $log) {
+        $endTime = \microtime(true);
+
+        $log->addExtra('veryLastShutdown', \strval(\microtime(true)));
+        $log->addExtra('durationSwoole', \strval($endTime - $swooleStartTime));
+
+        if($endTime - $swooleStartTime > 10) {
+            throw new Exception(Exception::GENERAL_SERVER_ERROR, 'Our amazing timeout.');
+        }
+    });
 
 $http->start();

@@ -52,6 +52,7 @@ use Utopia\Validator\Range;
 use Utopia\Validator\Text;
 use Utopia\Validator\URL;
 use Utopia\Validator\WhiteList;
+use Utopia\Logger\Log;
 
 /**
  * * Create attribute of varying type
@@ -384,12 +385,16 @@ App::init()
     ->groups(['api', 'database'])
     ->inject('request')
     ->inject('dbForProject')
-    ->action(function (Request $request, Database $dbForProject) {
+    ->inject('startTime')
+    ->inject('log')
+    ->action(function (Request $request, Database $dbForProject, float $startTime, Log $log) {
+        $log->addExtra('databaseInitStart', \strval(\microtime(true)));
         $timeout = \intval($request->getHeader('x-appwrite-timeout'));
 
         if (!empty($timeout) && App::isDevelopment()) {
             $dbForProject->setTimeout($timeout);
         }
+        $log->addExtra('databaseInitEnd', \strval(\microtime(true)));
     });
 
 App::post('/v1/databases')
