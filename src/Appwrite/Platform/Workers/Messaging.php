@@ -8,12 +8,12 @@ use Utopia\CLI\Console;
 use Utopia\Database\Document;
 use Utopia\DSN\DSN;
 use Utopia\Messaging\Messages\SMS;
-use Utopia\Messaging\Adapters\SMS\Mock;
-use Utopia\Messaging\Adapters\SMS\Msg91;
-use Utopia\Messaging\Adapters\SMS\Telesign;
-use Utopia\Messaging\Adapters\SMS\TextMagic;
-use Utopia\Messaging\Adapters\SMS\Twilio;
-use Utopia\Messaging\Adapters\SMS\Vonage;
+use Utopia\Messaging\Adapter\SMS\Mock;
+use Utopia\Messaging\Adapter\SMS\Msg91;
+use Utopia\Messaging\Adapter\SMS\Telesign;
+use Utopia\Messaging\Adapter\SMS\TextMagic;
+use Utopia\Messaging\Adapter\SMS\Twilio;
+use Utopia\Messaging\Adapter\SMS\Vonage;
 use Utopia\Platform\Action;
 use Utopia\Queue\Message;
 use Appwrite\Event\Usage;
@@ -133,6 +133,13 @@ class Messaging extends Action
 
         try {
             $sms->send($message);
+
+            $countryCode = $sms->getCountryCode($payload['recipient']);
+
+            if (!empty($countryCode)) {
+                $queueForUsage
+                    ->addMetric(str_replace('{countryCode}', $countryCode, METRIC_MESSAGES_COUNTRY_CODE), 1);
+            }
 
             $queueForUsage
                 ->setProject($project)
