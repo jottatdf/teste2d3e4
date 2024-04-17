@@ -7,7 +7,6 @@ use Utopia\CLI\Console;
 use Utopia\Platform\Action;
 use Utopia\Queue\Client;
 use Utopia\Queue\Connection;
-use Utopia\Validator\Integer;
 use Utopia\Validator\WhiteList;
 use Utopia\Validator\Wildcard;
 
@@ -34,8 +33,7 @@ class QueueRetry extends Action
                 Event::CERTIFICATES_QUEUE_NAME,
                 Event::BUILDS_QUEUE_NAME,
                 Event::MESSAGING_QUEUE_NAME,
-                Event::MIGRATIONS_QUEUE_NAME,
-                Event::HAMSTER_CLASS_NAME
+                Event::MIGRATIONS_QUEUE_NAME
             ]), 'Queue name')
             ->param('limit', 0, new Wildcard(), 'jobs limit', true)
             ->inject('queue')
