@@ -358,6 +358,19 @@ function router(App $utopia, Database $dbForConsole, callable $getProjectDB, Swo
 }
 
 App::init()
+    ->groups(['database', 'functions', 'storage', 'messaging'])
+    ->inject('project')
+    ->inject('request')
+    ->action(function (Document $project, Appwrite\Utopia\Request $request) {
+        if ($project->getId() === 'console') {
+            $message = empty($request->getHeader('x-appwrite-project')) ?
+                'No Appwrite project was specified. Please specify your Appwrite Project ID in the "x-appwrite-project" header or when you initialize your Appwrite SDK.' :
+                'This endpoint is not available for the console project. The Appwrite Console is a reserved project ID and cannot be used with the Appwrite SDKs and APIs. Please check if your project ID is correct.';
+            throw new AppwriteException(AppwriteException::GENERAL_ACCESS_FORBIDDEN, $message);
+        }
+    });
+
+App::init()
     ->groups(['api', 'web'])
     ->inject('utopia')
     ->inject('swooleRequest')
