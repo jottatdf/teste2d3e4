@@ -369,6 +369,15 @@ function router(App $utopia, Database $dbForConsole, callable $getProjectDB, Swo
 
 /*
 App::init()
+    ->groups(['database', 'function', 'storage', 'messaging'])
+    ->inject('project')
+    ->action(function (Document $project) {
+        if ($project->getId() === 'console') {
+            throw new Exception(AppwriteException::GENERAL_ACCESS_FORBIDDEN, 'Access to this API is forbidden. Please check your "X-Appwrite-Project" header');
+        }
+    });
+
+App::init()
     ->groups(['api'])
     ->inject('project')
     ->inject('mode')
